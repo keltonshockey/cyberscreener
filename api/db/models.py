@@ -882,3 +882,177 @@ def is_user_admin(user_id: int) -> bool:
     row = conn.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
     return bool(row and row["is_admin"])
+
+
+def update_augur_xp(user_id: int, xp_gained: int) -> dict:
+    """
+    Grant XP to a user, leveling up if threshold crossed.
+    Level formula: cost from L to L+1 = L * 100
+    Total XP to reach level L = 100 * L * (L-1) / 2
+    Returns dict with xp_gained, total_xp, level, old_level, leveled_up, xp_into_level, xp_for_next.
+    """
+    conn = get_db()
+    row = conn.execute("SELECT xp, level FROM augur_profiles WHERE user_id = ?", (user_id,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    old_xp = row["xp"] or 0
+    old_level = row["level"] or 1
+    new_xp = old_xp + xp_gained
+
+    # Calculate new level
+    new_level = old_level
+    while True:
+        xp_for_next = 100 * new_level * (new_level + 1) // 2  # total XP to reach next level
+        if new_xp >= xp_for_next:
+            new_level += 1
+        else:
+            break
+
+    # XP into current level and XP needed for next
+    xp_at_current = 100 * new_level * (new_level - 1) // 2
+    xp_at_next = 100 * (new_level + 1) * new_level // 2
+    xp_into_level = new_xp - xp_at_current
+    xp_for_next = xp_at_next - xp_at_current
+
+    # Determine rank
+    ranks = [
+        {"id": "plebeian",  "minLevel": 1,  "name": "Plebeian"},
+        {"id": "equite",    "minLevel": 6,  "name": "Equite"},
+        {"id": "quaestor",  "minLevel": 16, "name": "Quaestor"},
+        {"id": "master",    "minLevel": 31, "name": "Master"},
+        {"id": "senator",   "minLevel": 51, "name": "Senator"},
+    ]
+    old_rank = ranks[0]
+    new_rank = ranks[0]
+    for r in ranks:
+        if old_level >= r["minLevel"]:
+            old_rank = r
+        if new_level >= r["minLevel"]:
+            new_rank = r
+
+    conn.execute(
+        "UPDATE augur_profiles SET xp = ?, level = ?, updated_at = ? WHERE user_id = ?",
+        (new_xp, new_level, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "xp_gained": xp_gained,
+        "total_xp": new_xp,
+        "level": new_level,
+        "old_level": old_level,
+        "leveled_up": new_level > old_level,
+        "xp_into_level": xp_into_level,
+        "xp_for_next": xp_for_next,
+        "rank": new_rank["name"],
+        "old_rank": old_rank["name"],
+        "rank_up": new_rank["id"] != old_rank["id"],
+    }
+
+
+def get_augur_daily_xp(user_id: int) -> str | None:
+    """Get the last date this user received daily XP. Returns date string or None."""
+    conn = get_db()
+    row = conn.execute("SELECT last_daily_xp FROM augur_profiles WHERE user_id = ?", (user_id,)).fetchone()
+    conn.close()
+    if row and row["last_daily_xp"]:
+        return row["last_daily_xp"]
+    return None
+
+
+def set_augur_daily_xp(user_id: int, date_str: str):
+    """Set the last daily XP date for a user."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE augur_profiles SET last_daily_xp = ? WHERE user_id = ?",
+        (date_str, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_augur_buildings_entered(user_id: int) -> dict:
+    """Get dict of buildings this user has entered (for first-entry bonus)."""
+    conn = get_db()
+    row = conn.execute("SELECT buildings_entered FROM augur_profiles WHERE user_id = ?", (user_id,)).fetchone()
+    conn.close()
+    if row and row["buildings_entered"]:
+        try:
+            return json.loads(row["buildings_entered"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return {}
+
+
+def set_augur_buildings_entered(user_id: int, buildings: dict):
+    """Update the buildings_entered JSON for a user."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE augur_profiles SET buildings_entered = ? WHERE user_id = ?",
+        (json.dumps(buildings), user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+# ─── Social Presence ───────────────────────────────────────
+
+def upsert_augur_presence(user_id: int, augur_name: str, level: int, rank_idx: int, tile_x: int, tile_y: int):
+    """Insert or update augur presence on heartbeat. One row per user."""
+    conn = get_db()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("""
+        INSERT INTO augur_presence (user_id, augur_name, level, rank_idx, tile_x, tile_y, last_heartbeat, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        ON CONFLICT(user_id) DO UPDATE SET
+            augur_name = excluded.augur_name,
+            level = excluded.level,
+            rank_idx = excluded.rank_idx,
+            tile_x = excluded.tile_x,
+            tile_y = excluded.tile_y,
+            last_heartbeat = excluded.last_heartbeat,
+            is_active = 1
+    """, (user_id, augur_name, level, rank_idx, tile_x, tile_y, now))
+    conn.commit()
+    conn.close()
+
+
+def get_nearby_augurs(exclude_user_id: int, max_age_seconds: int = 60) -> list:
+    """Get active augurs with heartbeat within max_age_seconds. Excludes the requesting user."""
+    conn = get_db()
+    cutoff = (datetime.now() - timedelta(seconds=max_age_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = conn.execute("""
+        SELECT user_id, augur_name, level, rank_idx, tile_x, tile_y, stance_type, stance_data
+        FROM augur_presence
+        WHERE user_id != ? AND is_active = 1 AND last_heartbeat >= ?
+        ORDER BY last_heartbeat DESC
+        LIMIT 50
+    """, (exclude_user_id, cutoff)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def set_augur_stance(user_id: int, stance_type: str | None, stance_data: str | None):
+    """Set or clear a user's stance (e.g. 'merchant' with scroll data)."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE augur_presence SET stance_type = ?, stance_data = ? WHERE user_id = ?",
+        (stance_type, stance_data, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_stale_presences(max_age_seconds: int = 300):
+    """Mark augurs inactive if heartbeat is older than max_age_seconds."""
+    conn = get_db()
+    cutoff = (datetime.now() - timedelta(seconds=max_age_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute(
+        "UPDATE augur_presence SET is_active = 0 WHERE last_heartbeat < ?",
+        (cutoff,)
+    )
+    conn.commit()
+    conn.close()

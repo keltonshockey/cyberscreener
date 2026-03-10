@@ -74,6 +74,19 @@ def run_migration():
     except sqlite3.OperationalError:
         pass  # Column already exists
 
+    # ── Add XP tracking columns (idempotent) ──
+    try:
+        cursor.execute("ALTER TABLE augur_profiles ADD COLUMN last_daily_xp TEXT")
+        logger.info("Added last_daily_xp column to augur_profiles")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
+    try:
+        cursor.execute("ALTER TABLE augur_profiles ADD COLUMN buildings_entered TEXT DEFAULT '{}'")
+        logger.info("Added buildings_entered column to augur_profiles")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+
     conn.commit()
     conn.close()
     logger.info("✅ Augur migration complete (users, augur_profiles, refresh_tokens)")

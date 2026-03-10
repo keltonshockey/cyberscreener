@@ -56,9 +56,14 @@ from db.models import (
     # P4: User auth + Augur profiles
     create_user, get_user_by_email, get_user_by_id, update_user_last_login,
     create_augur_profile, get_augur_profile, get_augur_profile_by_id,
-    update_augur_profile, save_refresh_token, validate_refresh_token,
+    update_augur_profile, update_augur_xp,
+    get_augur_daily_xp, set_augur_daily_xp,
+    get_augur_buildings_entered, set_augur_buildings_entered,
+    save_refresh_token, validate_refresh_token,
     delete_refresh_token, delete_user_refresh_tokens, get_all_augur_profiles,
     set_user_admin, is_user_admin,
+    # P5: Social presence
+    upsert_augur_presence, get_nearby_augurs, set_augur_stance, clear_stale_presences,
 )
 from db.migrate_timing import run_migration as _run_timing_migration
 from db.migrate_sectors import run_migration as _run_sectors_migration
@@ -67,6 +72,7 @@ from db.migrate_watchlist import run_migration as _run_watchlist_migration
 from db.migrate_options_plays import run_migration as _run_options_plays_migration
 from db.migrate_short_delta import run_migration as _run_short_delta_migration
 from db.migrate_augur import run_migration as _run_augur_migration
+from db.migrate_presence import run_migration as _run_presence_migration
 try:
     from intel.notifier import notify_high_rc_play as _notify_high_rc_play
     _NOTIFIER_AVAILABLE = True
@@ -190,6 +196,8 @@ async def require_admin(
 # Allowed origins: production domain + local dev
 _ALLOWED_ORIGINS = [
     "https://cyber.keltonshockey.com",
+    "https://quaest.tech",
+    "https://www.quaest.tech",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://localhost:3000",
@@ -254,6 +262,11 @@ try:
     print("✅ Augur migration complete")
 except Exception as _me:
     print(f"Augur migration warning: {_me}")
+try:
+    _run_presence_migration()
+    print("✅ Presence migration complete")
+except Exception as _me:
+    print(f"Presence migration warning: {_me}")
 
 # Load saved weights if available
 def _load_saved_weights():
@@ -610,6 +623,79 @@ async def augur_profile_me(user: dict = Depends(require_current_user)):
     }
 
 
+# ── Social Presence (The Forum) ───────────────────────────────────────────────
+
+class HeartbeatRequest(BaseModel):
+    tile_x: int = Field(..., ge=0, le=200)
+    tile_y: int = Field(..., ge=0, le=200)
+
+
+class StanceRequest(BaseModel):
+    stance_type: Optional[str] = None   # 'merchant' or None to clear
+    stance_data: Optional[str] = None   # JSON scroll data
+
+
+@app.post("/augur/heartbeat")
+async def augur_heartbeat(req: HeartbeatRequest, user: dict = Depends(require_current_user)):
+    """Send presence heartbeat with current tile position. Rate-limited: 10/min."""
+    rate_key = f"heartbeat:{user['id']}"
+    if not _check_rate_limit(rate_key, max_calls=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Heartbeat rate limit exceeded")
+
+    # Get profile for level/rank
+    profile = get_augur_profile(user["id"])
+    level = profile["level"] if profile else 1
+
+    # Determine rank index from level
+    ranks = [
+        {"minLevel": 1}, {"minLevel": 6}, {"minLevel": 16},
+        {"minLevel": 31}, {"minLevel": 51},
+    ]
+    rank_idx = 0
+    for i, r in enumerate(ranks):
+        if level >= r["minLevel"]:
+            rank_idx = i
+
+    upsert_augur_presence(
+        user_id=user["id"],
+        augur_name=user["augur_name"],
+        level=level,
+        rank_idx=rank_idx,
+        tile_x=req.tile_x,
+        tile_y=req.tile_y,
+    )
+
+    # Opportunistically clean stale presences (> 5 min)
+    clear_stale_presences(max_age_seconds=300)
+
+    return {"ok": True, "tile_x": req.tile_x, "tile_y": req.tile_y}
+
+
+@app.get("/augur/nearby")
+async def augur_nearby(user: dict = Depends(require_current_user)):
+    """Get nearby active augurs (heartbeat within last 60s). Excludes self."""
+    augurs = get_nearby_augurs(exclude_user_id=user["id"], max_age_seconds=60)
+    return {"augurs": augurs}
+
+
+@app.post("/augur/stance")
+async def augur_stance_endpoint(req: StanceRequest, user: dict = Depends(require_current_user)):
+    """Set or clear merchant stance (display scroll data to other players)."""
+    if req.stance_type and req.stance_type not in ("merchant",):
+        raise HTTPException(status_code=400, detail="Invalid stance_type. Allowed: 'merchant'")
+
+    # Validate stance_data is valid JSON if provided
+    if req.stance_data:
+        try:
+            json.loads(req.stance_data)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(status_code=400, detail="stance_data must be valid JSON")
+
+    set_augur_stance(user["id"], req.stance_type, req.stance_data)
+    return {"ok": True, "stance_type": req.stance_type}
+
+
+# ── Public Profile (catch-all — must come AFTER all /augur/... specific routes) ──
 @app.get("/augur/{profile_id}")
 async def augur_public_profile(profile_id: int):
     """Public Augur profile view (for community)."""
@@ -648,6 +734,69 @@ async def augur_leaderboard(limit: int = Query(20, ge=1, le=100)):
         ],
         "total": len(profiles),
     }
+
+
+# ── XP & Leveling ─────────────────────────────────────────────────────────────
+
+# XP values per action
+_XP_ACTIONS = {
+    "portal":      10,   # Enter a building door
+    "scan":        50,   # Run a market scan
+    "view_ticker": 15,   # View ticker detail
+    "forge_smelt": 30,   # Backtest a strategy
+    "npc_dialog":   5,   # Complete NPC dialog
+    "daily_login": 25,   # First load per day
+}
+_FIRST_ENTRY_BONUS = 50  # Extra XP for first time entering each building
+
+class XPGrantRequest(BaseModel):
+    action: str = Field(..., description="XP action type")
+    context: Optional[str] = Field(None, description="Additional context (e.g. district ID, NPC name)")
+
+@app.post("/augur/xp")
+async def grant_xp(req: XPGrantRequest, user: dict = Depends(require_current_user)):
+    """Grant XP for in-game actions. Rate-limited: 10 calls/minute per action."""
+    action = req.action
+    context = req.context
+
+    if action not in _XP_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+
+    # Rate limit: 10 calls per minute per user per action
+    rate_key = f"xp:{user['id']}:{action}"
+    if not _check_rate_limit(rate_key, max_calls=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="XP rate limit exceeded")
+
+    base_xp = _XP_ACTIONS[action]
+    bonus_xp = 0
+    bonus_reason = None
+
+    # Daily login bonus: only once per calendar day
+    if action == "daily_login":
+        today = datetime.now().strftime("%Y-%m-%d")
+        last_daily = get_augur_daily_xp(user["id"])
+        if last_daily == today:
+            return {"xp_gained": 0, "total_xp": 0, "level": 0, "leveled_up": False,
+                    "message": "Daily XP already claimed today"}
+        set_augur_daily_xp(user["id"], today)
+
+    # First-entry building bonus
+    if action == "portal" and context:
+        buildings = get_augur_buildings_entered(user["id"])
+        if context not in buildings:
+            buildings[context] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            set_augur_buildings_entered(user["id"], buildings)
+            bonus_xp = _FIRST_ENTRY_BONUS
+            bonus_reason = f"First entry: {context}"
+
+    total_xp = base_xp + bonus_xp
+    result = update_augur_xp(user["id"], total_xp)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No Augur profile found")
+
+    result["bonus_xp"] = bonus_xp
+    result["bonus_reason"] = bonus_reason
+    return result
 
 
 # ── Personalized Scores ───────────────────────────────────────────────────────
