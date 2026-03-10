@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════
+   QUAEST.TECH — Animations
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Fade In ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease both; }
+
+/* ── Pulse (loading indicators) ── */
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+.pulse { animation: pulse 1.5s ease-in-out infinite; }
+
+/* ── Breathe (Quaestor avatar body) ── */
+@keyframes breathe {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(1.008); }
+}
+.breathe { animation: breathe 4s ease-in-out infinite; }
+
+/* ── Float (Quaestor avatar head) ── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1.5px); }
+}
+.float { animation: float 6s ease-in-out infinite; }
+
+/* ── Glow Pulse (Damascus rank weapon) ── */
+@keyframes glowPulse {
+  0%, 100% { filter: drop-shadow(0 0 4px var(--forge-amber)); opacity: 0.8; }
+  50%      { filter: drop-shadow(0 0 12px var(--forge-amber-light)); opacity: 1; }
+}
+.glow-pulse { animation: glowPulse 3s ease-in-out infinite; }
+
+/* ── Slide In (modals, drawers) ── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide-up { animation: slideUp 0.3s ease both; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide-down { animation: slideDown 0.3s ease both; }
+
+/* ── Score Bar Fill ── */
+@keyframes fillBar {
+  from { width: 0; }
+}
+.fill-bar { animation: fillBar 0.6s ease both; }
+
+/* ── Spin (loading) ── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin { animation: spin 1s linear infinite; }
+
+/* ── Shimmer (skeleton loading) ── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-border-subtle) 25%,
+    var(--marble-cream) 50%,
+    var(--color-border-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}

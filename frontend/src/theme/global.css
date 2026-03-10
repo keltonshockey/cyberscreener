@@ -1,0 +1,128 @@
+/* ═══════════════════════════════════════════════════════
+   QUAEST.TECH — Global Styles
+   ═══════════════════════════════════════════════════════ */
+
+@import './variables.css';
+@import './animations.css';
+
+/* ── Reset ── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Scrollbar — Marble + Silver ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--denarius-silver);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--denarius-silver-dark);
+}
+
+/* ── Typography Classes ── */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ── Focus Ring — Imperial Purple ── */
+:focus-visible {
+  outline: 2px solid var(--imperial-purple-light);
+  outline-offset: 2px;
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--imperial-purple-glow);
+  color: var(--imperial-purple-dark);
+}
+
+/* ── Links ── */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-accent-light);
+}
+
+/* ── Range Inputs — Imperial Purple ── */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border-subtle);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--imperial-purple);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(78, 11, 89, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--imperial-purple);
+  cursor: pointer;
+  border: none;
+}
+
+/* ── Utility Classes ── */
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+.uppercase   { text-transform: uppercase; }
+.truncate    { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── SVG Chart Tooltip ── */
+.svgtip {
+  position: absolute;
+  background: var(--obsidian);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-size: var(--text-xs);
+  color: #fff;
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}

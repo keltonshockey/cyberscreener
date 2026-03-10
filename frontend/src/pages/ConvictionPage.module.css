@@ -1,0 +1,65 @@
+/* ── Conviction Board Page ── */
+
+.layout { display: flex; gap: 16px; min-height: 60vh; }
+.sidebar { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.detail { flex: 1; min-width: 0; }
+
+.loading { color: var(--color-text-secondary); font-size: 12px; padding: 8px 0; text-align: center; }
+
+/* Filters */
+.filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.filterBtn { padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; background: transparent; border: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); transition: all var(--transition-fast); }
+.filterActive { background: var(--imperial-purple-glow); border-color: var(--imperial-purple); color: var(--imperial-purple); }
+
+/* Ticker list */
+.tickerCount { font-size: 11px; color: var(--color-text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 8px; margin-bottom: 4px; }
+
+.tickerRow {
+  display: grid;
+  grid-template-columns: 54px 1fr 44px 44px 22px;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background var(--transition-fast);
+}
+
+.tickerRow:hover { background: var(--color-bg); }
+
+.tickerSelected {
+  background: var(--imperial-purple-glow);
+  border-left-color: var(--imperial-purple);
+}
+
+/* When personal scores exist, expand grid */
+.tickerRow:has(.personalScore) {
+  grid-template-columns: 54px 1fr 44px 36px 44px 22px;
+}
+
+.tickerSymbol { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
+.tickerMeta {}
+.tickerPrice { font-size: 11px; color: var(--color-text-secondary); font-family: var(--font-mono); }
+.buyZone { margin-left: 4px; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--oxidized-bronze-light); }
+
+.personalScore { font-size: 10px; font-weight: 700; padding: 2px 5px; border-radius: 5px; font-family: var(--font-mono); border: 1px solid; }
+
+.optScore { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 5px; background: var(--color-bg); color: var(--color-text-secondary); font-family: var(--font-mono); }
+
+.shortDelta { font-size: 10px; font-weight: 700; line-height: 1; }
+
+/* Detail panel */
+.metricsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.layerRow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.breakdownGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.signalRow { display: flex; gap: 8px; padding: 5px 8px; border-radius: 6px; }
+.signalRow:nth-child(even) { background: var(--color-bg); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; max-height: 40vh; overflow-y: auto; }
+  .breakdownGrid { grid-template-columns: 1fr; }
+}

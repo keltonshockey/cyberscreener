@@ -1,0 +1,66 @@
+/* ── Basilica Page ── */
+
+.loading { color: var(--color-text-secondary); font-size: 12px; padding: 20px 0; text-align: center; }
+.loadingFull { color: var(--color-text-secondary); padding: 40px; text-align: center; }
+.emptyMsg { font-size: 12px; color: var(--color-text-secondary); padding: 4px 0; }
+
+.sectionTitle { font-size: var(--text-md); font-weight: 700; margin-bottom: 10px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--font-display); }
+.sectionTitleLg { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+
+.banner {
+  padding: 16px 20px;
+  background: linear-gradient(135deg, var(--imperial-purple-glow), rgba(102, 93, 30, 0.06));
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--imperial-purple);
+  font-size: var(--text-base);
+  color: var(--color-text);
+  line-height: 1.7;
+}
+
+/* Market Indices */
+.indicesGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.indexCard { padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: 10px; display: flex; flex-direction: column; gap: 3px; background: var(--color-bg-card); }
+.indexUp { background: var(--color-success-bg); border-color: var(--oxidized-bronze-light); }
+.indexDown { background: var(--color-danger-bg); border-color: var(--forge-red-light); }
+.indexHeader { display: flex; align-items: center; justify-content: space-between; }
+.indexStatus { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 5px; background: #f5f5f5; color: var(--color-text-tertiary); border: 1px solid var(--color-border); }
+.statusOpen { background: var(--color-success-bg); color: var(--color-success); border-color: var(--oxidized-bronze-light); }
+.indexName { font-size: 11px; font-weight: 600; color: var(--color-text); line-height: 1.2; }
+.indexPrice { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--color-text); }
+.indexChange { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+
+/* Killer Plays */
+.killerHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.alertBtn { padding: 6px 14px; border-radius: var(--radius-md); font-size: 11px; font-weight: 600; cursor: pointer; background: var(--imperial-purple-glow); border: 1px solid var(--imperial-purple); color: var(--imperial-purple); transition: background var(--transition-fast); }
+.alertBtn:hover:not(:disabled) { background: var(--imperial-purple); color: #fff; }
+.alertBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.killerGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.killerCard { padding: 12px; background: var(--marble-cream); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); cursor: pointer; transition: border-color var(--transition-fast); }
+.killerCard:hover { border-color: var(--imperial-purple); }
+.killerTicker { font-size: 14px; font-weight: 700; font-family: var(--font-mono); margin-bottom: 4px; }
+.killerType { margin-bottom: 4px; }
+.killerDetail { font-size: 10px; color: var(--color-text-tertiary); font-family: var(--font-mono); }
+
+/* Filters */
+.filterBtn { padding: 4px 10px; border-radius: 7px; font-size: 11px; font-weight: 600; cursor: pointer; background: var(--color-bg-card); border: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); transition: all var(--transition-fast); }
+.filterActive { background: var(--imperial-purple-glow); border-color: var(--imperial-purple); color: var(--imperial-purple); }
+
+/* Momentum rows */
+.momRow { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; border-left: 3px solid; }
+.momRow:nth-child(even) { background: var(--color-bg); }
+.momTicker { font-size: 12px; font-weight: 700; font-family: var(--font-mono); min-width: 50px; color: var(--color-text); }
+.momText { flex: 1; font-size: 11px; color: var(--color-text-secondary); line-height: 1.4; }
+.momAge { font-size: 10px; color: var(--color-text-tertiary); white-space: nowrap; margin-left: 4px; }
+
+/* Leaders */
+.leaderRow { display: grid; grid-template-columns: 20px 56px 1fr 60px; align-items: center; gap: 8px; padding: 5px 0; }
+.leaderRank { font-size: 11px; color: var(--color-text-tertiary); font-weight: 600; }
+.leaderTicker { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
+.leaderPrice { font-size: 12px; color: var(--color-text-secondary); text-align: right; font-family: var(--font-mono); }
+
+/* Intel */
+.intelGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.intelCard { padding: 16px; background: var(--color-bg); border-radius: var(--radius-lg); border: 1px solid var(--color-border-subtle); }
+.intelHeader { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.intelName { font-size: 13px; font-weight: 700; flex: 1; }
+.intelDesc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }

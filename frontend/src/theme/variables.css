@@ -1,0 +1,119 @@
+/* ═══════════════════════════════════════════════════════
+   QUAEST.TECH — Cyber-Classical Design Tokens
+   "Ancient Intelligence. Modern Gains."
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* ── The Palette ── */
+  --imperial-purple:       #4E0B59;
+  --imperial-purple-dark:  #3A0843;
+  --imperial-purple-light: #6B1E7A;
+  --imperial-purple-glow:  rgba(78, 11, 89, 0.15);
+
+  --denarius-silver:       #A6A6A6;
+  --denarius-silver-light: #C4C4C4;
+  --denarius-silver-dark:  #7A7A7A;
+
+  --marble-white:          #F2F2F2;
+  --marble-cream:          #FAF8F5;
+  --marble-warm:           #F5F0EB;
+
+  --oxidized-bronze:       #665D1E;
+  --oxidized-bronze-light: #7A7030;
+  --oxidized-bronze-glow:  rgba(102, 93, 30, 0.12);
+
+  --forge-red:             #8B2500;
+  --forge-red-light:       #A83020;
+  --forge-red-bg:          rgba(139, 37, 0, 0.08);
+
+  --forge-amber:           #B8860B;
+  --forge-amber-light:     #D4A017;
+  --forge-amber-bg:        rgba(184, 134, 11, 0.08);
+
+  --obsidian:              #1A1A1A;
+  --obsidian-light:        #2D2D2D;
+
+  /* ── Semantic Tokens ── */
+  --color-bg:              var(--marble-white);
+  --color-bg-card:         #FFFFFF;
+  --color-bg-elevated:     var(--marble-cream);
+  --color-border:          var(--denarius-silver-light);
+  --color-border-subtle:   #E5E5EA;
+
+  --color-text:            var(--obsidian);
+  --color-text-secondary:  #6B6B6B;
+  --color-text-tertiary:   #9E9E9E;
+
+  --color-accent:          var(--imperial-purple);
+  --color-accent-light:    var(--imperial-purple-light);
+  --color-accent-dark:     var(--imperial-purple-dark);
+
+  --color-success:         var(--oxidized-bronze);
+  --color-success-light:   var(--oxidized-bronze-light);
+  --color-success-bg:      var(--oxidized-bronze-glow);
+
+  --color-danger:          var(--forge-red);
+  --color-danger-light:    var(--forge-red-light);
+  --color-danger-bg:       var(--forge-red-bg);
+
+  --color-warning:         var(--forge-amber);
+  --color-warning-light:   var(--forge-amber-light);
+  --color-warning-bg:      var(--forge-amber-bg);
+
+  --color-info:            #2C5282;
+  --color-info-bg:         rgba(44, 82, 130, 0.08);
+
+  /* ── Typography ── */
+  --font-display:          'Cinzel', 'Times New Roman', serif;
+  --font-body:             'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:             'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  --text-xs:   0.6875rem;   /* 11px */
+  --text-sm:   0.75rem;     /* 12px */
+  --text-base: 0.8125rem;   /* 13px */
+  --text-md:   0.875rem;    /* 14px */
+  --text-lg:   1rem;        /* 16px */
+  --text-xl:   1.25rem;     /* 20px */
+  --text-2xl:  1.5rem;      /* 24px */
+  --text-3xl:  2rem;        /* 32px */
+
+  /* ── Spacing ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+
+  /* ── Borders & Radii ── */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-full: 9999px;
+
+  --border-hairline: 1px solid var(--color-border);
+  --border-subtle:   1px solid var(--color-border-subtle);
+  --border-accent:   1px solid var(--denarius-silver);
+
+  /* ── Shadows ── */
+  --shadow-sm:    0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md:    0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg:    0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-glow:  0 0 20px var(--imperial-purple-glow);
+  --shadow-bronze: 0 0 12px var(--oxidized-bronze-glow);
+
+  /* ── Transitions ── */
+  --transition-fast:   150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow:   400ms ease;
+
+  /* ── Z-Index Scale ── */
+  --z-dropdown:  100;
+  --z-sticky:    200;
+  --z-overlay:   300;
+  --z-modal:     400;
+  --z-tooltip:   500;
+}

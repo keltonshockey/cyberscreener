@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augur</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f5f5f7;color:#1d1d1f;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#c7c7cc;border-radius:3px}
+.pulse{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease both}
+.svgtip{position:absolute;background:#1d1d1f;border-radius:8px;padding:6px 12px;font-size:11px;color:#fff;pointer-events:none;z-index:10;font-family:'JetBrains Mono',monospace;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:#e5e5ea;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#007aff;cursor:pointer;box-shadow:0 1px 4px rgba(0,122,255,.3)}
+</style>
+</head>
+<body>
+<div id="root"><div style="padding:60px;text-align:center;color:#86868b">Loading CyberScreener...</div></div>
+<script type="text/babel">
+const {useState,useEffect,useCallback,useRef}=React;
+const C={bg:"#f5f5f7",bgCard:"#ffffff",border:"#e5e5ea",green:"#34c759",greenBg:"#f0fdf4",greenBorder:"#bbf7d0",red:"#ff3b30",redBg:"#fef2f2",redBorder:"#fecaca",amber:"#ff9500",amberBg:"#fffbeb",blue:"#007aff",blueBg:"#eff6ff",blueBorder:"#bfdbfe",purple:"#af52de",text:"#1d1d1f",textSec:"#86868b",textTri:"#aeaeb2",shadow:"0 1px 3px rgba(0,0,0,.06)"};
+const mono="'JetBrains Mono',monospace";
+function _getToken(){return localStorage.getItem('augur_jwt')}
+function _setTokens(access,refresh){localStorage.setItem('augur_jwt',access);if(refresh)localStorage.setItem('augur_refresh',refresh)}
+function _clearTokens(){localStorage.removeItem('augur_jwt');localStorage.removeItem('augur_refresh');localStorage.removeItem('augur_user')}
+async function api(path,opts={}){try{const t=_getToken();const h={...(opts.headers||{})};if(t)h['Authorization']='Bearer '+t;const r=await fetch(path,{...opts,headers:h});if(r.status===401&&t){const ref=localStorage.getItem('augur_refresh');if(ref){const rr=await fetch('/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:ref})});if(rr.ok){const d=await rr.json();_setTokens(d.access_token,d.refresh_token);h['Authorization']='Bearer '+d.access_token;const r2=await fetch(path,{...opts,headers:h});if(!r2.ok)throw new Error(r2.status);return await r2.json()}else{_clearTokens();return null}}}if(!r.ok)throw new Error(r.status);return await r.json()}catch(e){console.error("API "+path+":",e);return null}}
+
+// ─── Timezone utilities ───
+const TZ_KEY='augur_tz';
+const TZ_OPTIONS=[{label:'Auto',value:''},{label:'PT',value:'America/Los_Angeles'},{label:'MT',value:'America/Denver'},{label:'CT',value:'America/Chicago'},{label:'ET',value:'America/New_York'},{label:'UTC',value:'UTC'}];
+function _parseTS(ts){if(!ts)return null;const s=String(ts);const clean=s.includes('T')||s.endsWith('Z')?s:s.replace(' ','T')+'Z';const d=new Date(clean);return isNaN(d)?null:d;}
+function fmtTS(ts,tz,opts){const d=_parseTS(ts);if(!d)return'—';const tzVal=tz||Intl.DateTimeFormat().resolvedOptions().timeZone;try{return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',...(opts||{}),timeZone:tzVal});}catch(e){return d.toLocaleString();}}
+function fmtTimeOnly(ts,tz){const d=_parseTS(ts);if(!d)return'—';const tzVal=tz||Intl.DateTimeFormat().resolvedOptions().timeZone;try{return d.toLocaleString('en-US',{hour:'numeric',minute:'2-digit',timeZone:tzVal});}catch(e){return d.toLocaleTimeString();}}
+function fmtDateOnly(ts,tz){const d=_parseTS(ts);if(!d)return'—';const tzVal=tz||Intl.DateTimeFormat().resolvedOptions().timeZone;try{return d.toLocaleString('en-US',{month:'short',day:'numeric',timeZone:tzVal});}catch(e){return d.toLocaleDateString();}}
+function fmtExpiry(dateStr){if(!dateStr)return'—';try{const d=new Date(dateStr+'T12:00:00Z');if(isNaN(d))return dateStr;return d.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});}catch(e){return dateStr;}}
+function fmtCalRow(ts,tz){const d=_parseTS(ts);if(!d)return'—';const tzVal=tz||Intl.DateTimeFormat().resolvedOptions().timeZone;try{return d.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:tzVal});}catch(e){return String(ts).slice(0,16);}}
+
+// ─── SVG Charts ───
+function SvgBarChart({data,dataKey,labelKey,height=220,colorFn}){
+  const [tip,setTip]=useState(null);if(!data||!data.length)return null;
+  const mx=Math.max(...data.map(d=>Math.abs(d[dataKey]||0)),1),w=100/data.length,hasNeg=data.some(d=>(d[dataKey]||0)<0),baseY=hasNeg?50:100;
+  return React.createElement("div",{style:{position:"relative",width:"100%",height}},
+    tip&&React.createElement("div",{className:"svgtip",style:{left:tip.x,top:tip.y-30}},tip.text),
+    React.createElement("svg",{width:"100%",height:"100%",viewBox:"0 0 100 100",preserveAspectRatio:"none",style:{overflow:"visible"}},
+      [0,25,50,75,100].map(y=>React.createElement("line",{key:y,x1:0,y1:y,x2:100,y2:y,stroke:C.border,strokeWidth:.3})),
+      data.map((d,i)=>{const v=d[dataKey]||0,pct=Math.abs(v)/mx,c=colorFn?colorFn(d,v):v>=0?C.green:C.red,bh=pct*(hasNeg?48:95),by=v>=0?(baseY-bh):baseY;
+        return React.createElement("rect",{key:i,x:i*w+w*.1,y:by,width:w*.8,height:Math.max(bh,.5),fill:c,opacity:.75,rx:.8,
+          onMouseEnter:e=>{const r=e.target.getBoundingClientRect(),pr=e.target.closest('div').getBoundingClientRect();setTip({x:r.left-pr.left,y:r.top-pr.top,text:(d[labelKey]||"")+": "+(typeof v==="number"?v.toFixed(1):v)})},onMouseLeave:()=>setTip(null)})})),
+    React.createElement("div",{style:{display:"flex",justifyContent:"space-around",marginTop:4}},data.map((d,i)=>React.createElement("div",{key:i,style:{fontSize:8,color:C.textSec,textAlign:"center",flex:1,overflow:"hidden",whiteSpace:"nowrap",transform:"rotate(-35deg)",transformOrigin:"top center",fontFamily:mono}},d[labelKey]||""))));}
+
+function SvgAreaChart({data,lines,height=260,xKey="date"}){
+  const [tip,setTip]=useState(null);if(!data||!data.length)return null;
+  const n=data.length,allV=lines.flatMap(l=>data.map(d=>d[l.key]||0)),mn=Math.min(...allV),mx=Math.max(...allV),rng=mx-mn||1;
+  const px=i=>(i/(n-1))*100,py=v=>100-((v-mn)/rng)*90-5;
+  return React.createElement("div",{style:{position:"relative",width:"100%",height}},
+    tip&&React.createElement("div",{className:"svgtip",style:{left:tip.x,top:Math.max(0,tip.y-36)}},tip.text),
+    React.createElement("svg",{width:"100%",height:"100%",viewBox:"0 0 100 100",preserveAspectRatio:"none",style:{overflow:"visible"}},
+      [0,25,50,75,100].map(y=>React.createElement("line",{key:y,x1:0,y1:y,x2:100,y2:y,stroke:C.border,strokeWidth:.2})),
+      lines.map(l=>{const pts=data.map((d,i)=>px(i)+","+py(d[l.key]||0)).join(" ");return React.createElement("g",{key:l.key},React.createElement("polygon",{points:pts+" 100,100 0,100",fill:l.color,opacity:.08}),React.createElement("polyline",{points:pts,fill:"none",stroke:l.color,strokeWidth:.8}))}),
+      data.map((d,i)=>React.createElement("rect",{key:i,x:px(i)-.8,y:0,width:1.6,height:100,fill:"transparent",
+        onMouseEnter:e=>{const r=e.target.getBoundingClientRect(),pr=e.target.closest('div').getBoundingClientRect();setTip({x:r.left-pr.left,y:r.top-pr.top,text:(d[xKey]||"")+"  "+lines.map(l=>l.name+": "+(d[l.key]||0)).join("  ")})},onMouseLeave:()=>setTip(null)}))),
+    React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginTop:2}},[data[0],data[Math.floor(n/2)],data[n-1]].filter(Boolean).map((d,i)=>React.createElement("span",{key:i,style:{fontSize:9,color:C.textSec}},d[xKey]||""))),
+    React.createElement("div",{style:{display:"flex",gap:12,marginTop:4}},lines.map(l=>React.createElement("span",{key:l.key,style:{fontSize:10,color:l.color,fontWeight:600}},"● "+l.name))));}
+
+function SvgDualLineChart({data,line1,line2,height=200,xKey="date"}){
+  const [tip,setTip]=useState(null);if(!data||!data.length)return null;
+  const n=data.length,v1=data.map(d=>d[line1.key]||0),v2=data.map(d=>d[line2.key]||0);
+  const mn1=Math.min(...v1),mx1=Math.max(...v1),r1=mx1-mn1||1,mn2=Math.min(...v2),mx2=Math.max(...v2),r2=mx2-mn2||1;
+  const px=i=>(i/(n-1))*100,py1=v=>95-((v-mn1)/r1)*85,py2=v=>95-((v-mn2)/r2)*85;
+  const pts1=data.map((d,i)=>px(i)+","+py1(d[line1.key]||0)).join(" "),pts2=data.map((d,i)=>px(i)+","+py2(d[line2.key]||0)).join(" ");
+  return React.createElement("div",{style:{position:"relative",width:"100%",height}},
+    tip&&React.createElement("div",{className:"svgtip",style:{left:tip.x,top:Math.max(0,tip.y-36)}},tip.text),
+    React.createElement("svg",{width:"100%",height:"100%",viewBox:"0 0 100 100",preserveAspectRatio:"none",style:{overflow:"visible"}},
+      [0,25,50,75,100].map(y=>React.createElement("line",{key:y,x1:0,y1:y,x2:100,y2:y,stroke:C.border,strokeWidth:.2})),
+      React.createElement("polyline",{points:pts1,fill:"none",stroke:line1.color,strokeWidth:.8}),
+      React.createElement("polyline",{points:pts2,fill:"none",stroke:line2.color,strokeWidth:.6,strokeDasharray:"2,1.5"}),
+      data.map((d,i)=>React.createElement("rect",{key:i,x:px(i)-.8,y:0,width:1.6,height:100,fill:"transparent",
+        onMouseEnter:e=>{const r=e.target.getBoundingClientRect(),pr=e.target.closest('div').getBoundingClientRect();setTip({x:r.left-pr.left,y:r.top-pr.top,text:(d[xKey]||"")+"  "+line1.name+": "+(d[line1.key]||0)+"  "+line2.name+": "+(d[line2.key]||0)})},onMouseLeave:()=>setTip(null)}))),
+    React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginTop:2}},[data[0],data[Math.floor(n/2)],data[n-1]].filter(Boolean).map((d,i)=>React.createElement("span",{key:i,style:{fontSize:9,color:C.textSec}},d[xKey]||""))),
+    React.createElement("div",{style:{display:"flex",gap:12,marginTop:4}},React.createElement("span",{style:{fontSize:10,color:line1.color,fontWeight:600}},"● "+line1.name),React.createElement("span",{style:{fontSize:10,color:line2.color,fontWeight:600}},"┄ "+line2.name)));}
+
+function SvgHorizBarChart({data,dataKey,labelKey,height=180}){
+  const [tip,setTip]=useState(null);if(!data||!data.length)return null;const mx=Math.max(...data.map(d=>Math.abs(d[dataKey]||0)),1),h=100/data.length;
+  return React.createElement("div",{style:{position:"relative",width:"100%",height}},
+    tip&&React.createElement("div",{className:"svgtip",style:{left:tip.x,top:tip.y-30}},tip.text),
+    React.createElement("svg",{width:"100%",height:"100%",viewBox:"0 0 100 100",preserveAspectRatio:"none",style:{overflow:"visible"}},
+      data.map((d,i)=>{const v=d[dataKey]||0,w=Math.abs(v)/mx*60,c=v>=0?C.green:C.red,by=i*h+h*.15,bh=h*.7;
+        return React.createElement("g",{key:i},React.createElement("text",{x:2,y:by+bh/2+1,fill:C.textSec,fontSize:3.5,dominantBaseline:"middle"},d[labelKey]||""),
+          React.createElement("rect",{x:35,y:by,width:Math.max(w,.5),height:bh,fill:c,opacity:.7,rx:.5,onMouseEnter:e=>{const r=e.target.getBoundingClientRect(),pr=e.target.closest('div').getBoundingClientRect();setTip({x:r.left-pr.left+r.width,y:r.top-pr.top,text:(d[labelKey]||"")+": "+(v>0?"+":"")+v.toFixed(1)+"%"})},onMouseLeave:()=>setTip(null)}),
+          React.createElement("text",{x:36+Math.max(w,1),y:by+bh/2+1,fill:c,fontSize:3,dominantBaseline:"middle",fontFamily:mono},(v>0?"+":"")+v.toFixed(1)+"%"))})));}
+
+function SvgGroupedBarChart({data,bars,labelKey,height=220}){
+  const [tip,setTip]=useState(null);if(!data||!data.length)return null;const mx=Math.max(...bars.flatMap(b=>data.map(d=>Math.abs(d[b.key]||0))),1),gw=100/data.length,bw=gw*.7/bars.length;
+  return React.createElement("div",{style:{position:"relative",width:"100%",height}},
+    tip&&React.createElement("div",{className:"svgtip",style:{left:tip.x,top:tip.y-30}},tip.text),
+    React.createElement("svg",{width:"100%",height:"100%",viewBox:"0 0 100 100",preserveAspectRatio:"none",style:{overflow:"visible"}},
+      [0,25,50,75,100].map(y=>React.createElement("line",{key:y,x1:0,y1:y,x2:100,y2:y,stroke:C.border,strokeWidth:.2})),
+      data.flatMap((d,i)=>bars.map((b,j)=>{const v=d[b.key]||0,bh=Math.abs(v)/mx*90;return React.createElement("rect",{key:i+"-"+j,x:i*gw+gw*.15+j*bw,y:100-bh,width:bw*.9,height:Math.max(bh,.5),fill:b.color,opacity:.7,rx:.5,onMouseEnter:e=>{const r=e.target.getBoundingClientRect(),pr=e.target.closest('div').getBoundingClientRect();setTip({x:r.left-pr.left,y:r.top-pr.top,text:(d[labelKey]||"")+" "+b.name+": "+v.toFixed(1)+"%"})},onMouseLeave:()=>setTip(null)})}))),
+    React.createElement("div",{style:{display:"flex",justifyContent:"space-around",marginTop:4}},data.map((d,i)=>React.createElement("div",{key:i,style:{fontSize:8,color:C.textSec,textAlign:"center",flex:1,fontFamily:mono}},d[labelKey]||""))),
+    React.createElement("div",{style:{display:"flex",gap:12,marginTop:4}},bars.map(b=>React.createElement("span",{key:b.key,style:{fontSize:10,color:b.color,fontWeight:600}},"● "+b.name))));}
+
+// ─── Signal Price Chart ───
+function SvgPriceChart({ticker,days=90}){
+  const [data,setData]=useState(null),[tip,setTip]=useState(null),[showSMA,setShowSMA]=useState({s20:true,s50:true,s200:false}),[selDays,setSelDays]=useState(days);
+  useEffect(()=>{if(!ticker)return;setData(null);api('/chart/'+ticker+'?days='+selDays).then(d=>setData(d))},[ticker,selDays]);
+  if(!data)return React.createElement("div",{style:{height:340,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSec,fontSize:12,background:C.bg,borderRadius:12}},"Loading chart...");
+  const prices=data.prices||[];
+  if(!prices.length)return React.createElement("div",{style:{height:80,display:"flex",alignItems:"center",justifyContent:"center",color:C.textSec,fontSize:12,background:C.bg,borderRadius:12}},"No price data — run backfill or wait for next scan");
+  const n=prices.length,sigs=data.signals||[];
+  // ViewBox 0 0 100 115: price area PT→PB, divider, RSI RT→RB, labels below
+  const PT=2,PB=72,RT=78,RB=100;
+  const px=i=>(i/(n-1||1))*100;
+  const closes=prices.map(p=>p.close||0);
+  const validPrices=[...closes,...prices.map(p=>p.sma20).filter(v=>v!=null),...prices.map(p=>p.sma50).filter(v=>v!=null),...prices.map(p=>p.sma200).filter(v=>v!=null)];
+  const pMin=Math.min(...validPrices)*0.997,pMax=Math.max(...validPrices)*1.003,pR=pMax-pMin||1;
+  const py=v=>PB-((v-pMin)/pR)*(PB-PT);
+  const pyR=r=>RB-(r/100)*(RB-RT);
+  const makePts=getV=>{let d="";prices.forEach((p,i)=>{const v=getV(p);if(v!=null)d+=(d?" ":"")+px(i)+","+py(v)});return d};
+  const rsiPts=prices.map((p,i)=>p.rsi!=null?{x:px(i),y:pyR(p.rsi)}:null).filter(Boolean);
+  const rsiLine=rsiPts.map(p=>p.x+","+p.y).join(" ");
+  const rsiFill=rsiPts.length>1?rsiLine+" "+rsiPts[rsiPts.length-1].x+","+RB+" "+rsiPts[0].x+","+RB:"";
+  const priceLine=prices.map((p,i)=>px(i)+","+py(p.close||0)).join(" ");
+  const priceFill=priceLine+" "+px(n-1)+","+PB+" 0,"+PB;
+  const SC={earnings:C.amber,insider_buy:C.green,insider_sell:C.red,rsi_oversold:C.green,rsi_overbought:C.red,sma_cross_bull:"#30d158",sma_cross_bear:C.red};
+  const SI={earnings:"E",insider_buy:"B",insider_sell:"S",rsi_oversold:"◎",rsi_overbought:"◎",sma_cross_bull:"▲",sma_cross_bear:"▼"};
+  const d2i={};prices.forEach((p,i)=>{d2i[p.date]=i});
+  const mappedSigs=sigs.map(s=>{let idx=d2i[s.date];if(idx==null){let best=0,bd=Infinity;prices.forEach((p,i)=>{const dd=Math.abs(new Date(p.date)-new Date(s.date));if(dd<bd){bd=dd;best=i}});idx=best}return{...s,idx,x:px(idx),color:SC[s.type]||C.blue,icon:SI[s.type]||"•"}});
+  const fmtD=d=>d?d.slice(5):"";
+  return React.createElement("div",{style:{position:"relative",width:"100%"}},
+    tip&&React.createElement("div",{className:"svgtip",style:{left:tip.x,top:Math.max(0,tip.y-40)}},tip.text),
+    React.createElement("div",{style:{display:"flex",gap:6,marginBottom:8}},
+      [30,60,90,180].map(d=>React.createElement("button",{key:d,onClick:()=>setSelDays(d),style:{padding:"4px 10px",borderRadius:6,fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:mono,background:selDays===d?C.blueBg:C.bgCard,border:"1px solid "+(selDays===d?C.blue+"40":C.border),color:selDays===d?C.blue:C.textSec}},d+"d"))),
+    React.createElement("svg",{width:"100%",height:340,viewBox:"0 0 100 115",preserveAspectRatio:"none",style:{overflow:"visible",display:"block"}},
+      // Grid lines — price area
+      [.25,.5,.75,1].map(f=>React.createElement("line",{key:"pg"+f,x1:0,y1:PT+(PB-PT)*f,x2:100,y2:PT+(PB-PT)*f,stroke:C.border,strokeWidth:.2})),
+      // RSI reference lines
+      React.createElement("line",{x1:0,y1:pyR(70),x2:100,y2:pyR(70),stroke:C.red+"50",strokeWidth:.25,strokeDasharray:"1.5,1"}),
+      React.createElement("line",{x1:0,y1:pyR(30),x2:100,y2:pyR(30),stroke:C.green+"50",strokeWidth:.25,strokeDasharray:"1.5,1"}),
+      React.createElement("line",{x1:0,y1:pyR(50),x2:100,y2:pyR(50),stroke:C.border,strokeWidth:.15}),
+      // Signal vertical dashed lines
+      ...mappedSigs.map((s,i)=>React.createElement("line",{key:"svl"+i,x1:s.x,y1:PT,x2:s.x,y2:RB,stroke:s.color,strokeWidth:.35,strokeDasharray:"1.2,1.2",opacity:.6})),
+      // Price fill area
+      React.createElement("polygon",{points:priceFill,fill:C.blue,opacity:.06}),
+      // SMA lines
+      showSMA.s200&&React.createElement("polyline",{points:makePts(p=>p.sma200),fill:"none",stroke:C.purple,strokeWidth:.45,opacity:.75}),
+      showSMA.s50&&React.createElement("polyline",{points:makePts(p=>p.sma50),fill:"none",stroke:C.amber,strokeWidth:.45,opacity:.8}),
+      showSMA.s20&&React.createElement("polyline",{points:makePts(p=>p.sma20),fill:"none",stroke:"#30d158",strokeWidth:.45,opacity:.8}),
+      // Price line
+      React.createElement("polyline",{points:priceLine,fill:"none",stroke:C.blue,strokeWidth:.65}),
+      // Divider
+      React.createElement("line",{x1:0,y1:RT-2,x2:100,y2:RT-2,stroke:C.border,strokeWidth:.3}),
+      // RSI fill + line
+      rsiFill&&React.createElement("polygon",{points:rsiFill,fill:C.amber,opacity:.1}),
+      rsiLine&&React.createElement("polyline",{points:rsiLine,fill:"none",stroke:C.amber,strokeWidth:.55}),
+      // RSI labels
+      React.createElement("text",{x:1,y:RT+.5,fill:C.textSec,fontSize:2.2,dominantBaseline:"hanging"},"RSI"),
+      React.createElement("text",{x:99,y:pyR(70),fill:C.red,fontSize:2,textAnchor:"end",dominantBaseline:"middle"},"70"),
+      React.createElement("text",{x:99,y:pyR(30),fill:C.green,fontSize:2,textAnchor:"end",dominantBaseline:"middle"},"30"),
+      // RSI extreme circles
+      ...mappedSigs.filter(s=>s.type==="rsi_oversold"||s.type==="rsi_overbought").map((s,i)=>React.createElement("circle",{key:"sc"+i,cx:s.x,cy:pyR(s.type==="rsi_oversold"?28:72),r:1.1,fill:s.color,opacity:.9})),
+      // Signal icon tags at bottom of price area
+      ...mappedSigs.filter(s=>s.type!=="rsi_oversold"&&s.type!=="rsi_overbought").map((s,i)=>React.createElement("text",{key:"st"+i,x:s.x,y:PB-1,fill:s.color,fontSize:2.4,textAnchor:"middle",fontFamily:mono,fontWeight:"bold"},s.icon)),
+      // Y-axis price labels
+      React.createElement("text",{x:1,y:PB,fill:C.textSec,fontSize:2},"$"+pMin.toFixed(0)),
+      React.createElement("text",{x:1,y:PT+2.5,fill:C.textSec,fontSize:2},"$"+pMax.toFixed(0)),
+      // X-axis date labels
+      React.createElement("text",{x:1,y:104,fill:C.textSec,fontSize:2.2},fmtD(prices[0]?.date)),
+      n>2&&React.createElement("text",{x:50,y:104,fill:C.textSec,fontSize:2.2,textAnchor:"middle"},fmtD(prices[Math.floor(n/2)]?.date)),
+      React.createElement("text",{x:99,y:104,fill:C.textSec,fontSize:2.2,textAnchor:"end"},fmtD(prices[n-1]?.date)),
+      // Hover strips
+      ...prices.map((p,i)=>React.createElement("rect",{key:"hs"+i,x:px(i)-.6,y:0,width:1.2,height:100,fill:"transparent",
+        onMouseEnter:e=>{const r=e.target.getBoundingClientRect(),pr=e.target.closest("div").getBoundingClientRect();
+          const parts=[p.date,"$"+(p.close||0).toFixed(2)];
+          if(p.rsi!=null)parts.push("RSI "+p.rsi);
+          if(showSMA.s20&&p.sma20)parts.push("SMA20 $"+p.sma20.toFixed(0));
+          if(showSMA.s50&&p.sma50)parts.push("SMA50 $"+p.sma50.toFixed(0));
+          setTip({x:r.left-pr.left,y:r.top-pr.top,text:parts.join("  ")})},
+        onMouseLeave:()=>setTip(null)}))
+    ),
+    // Legend
+    React.createElement("div",{style:{display:"flex",gap:10,marginTop:6,flexWrap:"wrap",alignItems:"center"}},
+      React.createElement("span",{style:{fontSize:10,color:C.blue,fontWeight:600}},"● Price"),
+      React.createElement("span",{style:{fontSize:10,color:"#30d158",fontWeight:showSMA.s20?700:400,cursor:"pointer",opacity:showSMA.s20?1:.45},onClick:()=>setShowSMA(s=>({...s,s20:!s.s20}))},"● SMA20"),
+      React.createElement("span",{style:{fontSize:10,color:C.amber,fontWeight:showSMA.s50?700:400,cursor:"pointer",opacity:showSMA.s50?1:.45},onClick:()=>setShowSMA(s=>({...s,s50:!s.s50}))},"● SMA50"),
+      React.createElement("span",{style:{fontSize:10,color:C.purple,fontWeight:showSMA.s200?700:400,cursor:"pointer",opacity:showSMA.s200?1:.45},onClick:()=>setShowSMA(s=>({...s,s200:!s.s200}))},"● SMA200"),
+      React.createElement("span",{style:{fontSize:10,color:C.amber,fontWeight:600}},"┄ RSI"),
+      React.createElement("span",{style:{flex:1}}),
+      React.createElement("span",{style:{fontSize:9,color:C.amber,fontFamily:mono}},"E Earnings "),
+      React.createElement("span",{style:{fontSize:9,color:C.green,fontFamily:mono}},"B Buy "),
+      React.createElement("span",{style:{fontSize:9,color:C.red,fontFamily:mono}},"S Sell "),
+      React.createElement("span",{style:{fontSize:9,color:"#30d158",fontFamily:mono}},"▲ Bull "),
+      React.createElement("span",{style:{fontSize:9,color:C.red,fontFamily:mono}},"▼ Bear "),
+      React.createElement("span",{style:{fontSize:9,color:C.green,fontFamily:mono}},"◎ OS/OB")));}
+
+// ─── Shared UI ───
+function Badge({children,color=C.green,variant}){const s=variant==="pill"?{display:"inline-flex",padding:"3px 10px",borderRadius:12,fontSize:11,fontWeight:600,background:color+"12",color}:{display:"inline-block",padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:600,background:color+"12",color};return React.createElement("span",{style:s},children)}
+function Card({children,style,...p}){return React.createElement("div",{style:{background:C.bgCard,borderRadius:14,border:"1px solid "+C.border,boxShadow:C.shadow,...style},...p},children)}
+function Metric({label,value,sub,color}){return React.createElement("div",{style:{padding:"16px 18px",background:C.bgCard,borderRadius:12,border:"1px solid "+C.border,boxShadow:C.shadow}},React.createElement("div",{style:{fontSize:11,color:C.textSec,textTransform:"uppercase",letterSpacing:".04em",fontWeight:600,marginBottom:6}},label),React.createElement("div",{style:{fontSize:26,fontWeight:700,color:color||C.text,fontFamily:mono,lineHeight:1}},value),sub&&React.createElement("div",{style:{fontSize:11,color:C.textSec,marginTop:4}},sub))}
+function ScoreBar({score}){const pct=Math.max(0,Math.min(100,score)),color=score>=60?C.green:score>=35?C.amber:C.red;return React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8}},React.createElement("div",{style:{flex:1,height:5,background:"#f0f0f0",borderRadius:3,overflow:"hidden"}},React.createElement("div",{style:{width:pct+"%",height:"100%",background:color,borderRadius:3,transition:"width 0.6s ease"}})),React.createElement("span",{style:{fontSize:13,fontWeight:700,color,fontFamily:mono,minWidth:28}},score))}
+function LayerPill({name,icon,score}){const on=score&&score>0;return React.createElement("span",{style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:8,fontSize:11,fontWeight:600,fontFamily:mono,background:on?C.greenBg:"#f0f0f2",color:on?C.green:C.textTri,border:"1px solid "+(on?C.greenBorder:C.border)}},icon," ",name," ",on?"+"+score:"off")}
+
+function ltBreakdown(r){const rg=r.revenue_growth_pct||0,ps=r.ps_ratio||0,gm=r.gross_margin_pct||0,fcf=r.fcf_m||0,disc=r.pct_from_52w_high||0;return[{l:"Rule of 40",v:rg>25?25:rg>15?15:rg>0?5:-10,m:25,d:Math.round(rg+(r.operating_margin_pct||gm*.5))},{l:"Valuation",v:(ps<5&&rg>15)?20:(ps<10&&rg>20)?12:ps>30?-10:0,m:20,d:ps?ps.toFixed(1)+"x":"—"},{l:"FCF Margin",v:fcf>500?15:fcf>0?8:-5,m:15,d:fcf?"$"+fcf+"M":"—"},{l:"Trend",v:gm>75?15:gm>60?8:gm<40?-10:0,m:15,d:gm?gm+"%":"—"},{l:"Earnings Qual.",v:rg>20?10:rg>5?5:0,m:10,d:rg?rg+"%":"—"},{l:"Disc. Momentum",v:disc<-30?15:disc<-15?8:0,m:15,d:disc?disc+"%":"—"}]}
+function optBreakdown(r){const dte=r.days_to_earnings,iv=r.iv_30d||0,vr=r.vol_ratio||1,rsi=r.rsi||50,bb=r.bb_width||999;let ev=0;if(dte!=null){if(dte>=5&&dte<=14)ev=25;else if(dte>=15&&dte<=30)ev=18;else if(dte>=1&&dte<=4)ev=12}return[{l:"Earnings Catalyst",v:ev,m:25,d:dte!=null?dte+"d":"None"},{l:"IV Context",v:iv>60?20:iv>40?10:0,m:20,d:iv?iv+"%":"—"},{l:"Directional",v:rsi<30?20:rsi>70?15:rsi<40?10:0,m:20,d:"RSI "+Math.round(rsi)},{l:"Technical",v:bb<10?15:bb<15?8:0,m:15,d:"BB "+((bb<999)?bb+"%":"—")},{l:"Liquidity",v:vr>2?10:vr>1.5?6:0,m:10,d:vr+"x vol"},{l:"Asymmetry",v:((r.short_pct||0)>10?5:0)+((r.beta||1)>1.5?5:0),m:10,d:(r.short_pct||0)?r.short_pct+"% short":"—"}]}
+function BreakdownPanel({items,title,accent}){return React.createElement("div",{style:{padding:16,background:C.bg,borderRadius:12,border:"1px solid "+C.border}},React.createElement("div",{style:{fontSize:12,fontWeight:700,marginBottom:10,color:accent||C.blue}},title),items&&items.map((it,i)=>{const c=it.v>0?C.green:it.v<0?C.red:C.textTri,w=it.v>0?Math.min(100,(it.v/it.m)*100):0;return React.createElement("div",{key:i,style:{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}},React.createElement("span",{style:{fontSize:11,color:C.textSec,minWidth:95,fontWeight:500}},it.l),React.createElement("div",{style:{flex:1,height:4,background:C.border,borderRadius:2,overflow:"hidden"}},React.createElement("div",{style:{width:w+"%",height:"100%",background:c,borderRadius:2}})),React.createElement("span",{style:{fontSize:12,fontWeight:700,color:c,fontFamily:mono,minWidth:28,textAlign:"right"}},(it.v>0?"+":"")+it.v),React.createElement("span",{style:{fontSize:10,color:C.textTri,minWidth:52,textAlign:"right",fontFamily:mono}},it.d))}))}
+
+// ─── Killer Plays Widget ───
+function KillerPlaysWidget({onSelectPlay}){
+  const [plays,setPlays]=useState(null),[alertSent,setAlertSent]=useState(false),[alertMsg,setAlertMsg]=useState("");
+  useEffect(()=>{api("/killer-plays?limit=6").then(d=>{if(d)setPlays(d)})},[]);
+  const sendAlert=async()=>{const r=await api("/alerts/send-killer-plays",{method:"POST"});setAlertSent(true);setAlertMsg(r?.status==="sent"?"✓ Email sent":r?.status==="email_not_configured"?"Email not configured (see /alerts/config)":"No plays found");setTimeout(()=>setAlertSent(false),4000)};
+  if(!plays)return React.createElement("div",{style:{color:C.textSec,fontSize:12,padding:"20px 0",textAlign:"center"}},"Loading killer plays...");
+  const kp=plays.plays||[];
+  if(!kp.length)return React.createElement("div",{style:{padding:"16px 0",color:C.textSec,fontSize:12,textAlign:"center"}},"No killer plays meeting criteria right now (need opt≥55, lt≥40, no threats).");
+  return React.createElement("div",null,
+    React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}},
+      React.createElement("div",null,
+        React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 2px"}},"⚡ Killer Plays"),
+        React.createElement("p",{style:{fontSize:11,color:C.textSec,margin:0}},"Top 40% opt score · lt≥35 · no active threats")),
+      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+        alertSent&&React.createElement("span",{style:{fontSize:11,color:C.textSec}},alertMsg),
+        React.createElement("button",{onClick:sendAlert,style:{padding:"6px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:C.bg,color:C.textSec,border:"1px solid "+C.border}},"📧 Email Alert"))),
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}},
+      kp.map(p=>{
+        const cs=p.combined_score||0,col=cs>=70?C.green:cs>=55?C.amber:C.blue;
+        const bg=cs>=70?C.greenBg:cs>=55?"#fffbeb":C.blueBg;
+        const brd=cs>=70?C.greenBorder:cs>=55?"#fed7aa":C.blueBorder;
+        return React.createElement("div",{key:p.ticker,onClick:()=>onSelectPlay&&onSelectPlay(p.ticker),
+          style:{padding:"12px 14px",background:bg,border:"1px solid "+brd,borderRadius:10,cursor:"pointer",transition:"transform .15s"},
+          onMouseEnter:e=>e.currentTarget.style.transform="translateY(-2px)",
+          onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}},
+            React.createElement("span",{style:{fontSize:14,fontWeight:800,fontFamily:mono,color:col}},p.ticker),
+            React.createElement("span",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:col}},cs)),
+          React.createElement("div",{style:{fontSize:11,color:C.textSec,marginBottom:4}},"$"+p.price+" · RSI "+(p.rsi!=null?Math.round(p.rsi):"—")),
+          React.createElement("div",{style:{display:"flex",gap:6,marginBottom:6}},
+            React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:5,background:C.greenBg,color:C.green,border:"1px solid "+C.greenBorder}},"Opt "+p.opt_score),
+            React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:5,background:C.blueBg,color:C.blue,border:"1px solid "+C.blueBorder}},"LT "+p.lt_score)),
+          React.createElement("div",{style:{fontSize:11,color:C.text,fontWeight:500}},p.catalyst||""),
+          React.createElement("div",{style:{fontSize:10,color:C.textSec,marginTop:2}},p.direction_label||""));})
+    ));}
+
+// ─── Reality Check ───
+function computeRC(play){
+  let s=50;const reasons=[];const ml=Number(play.max_loss)||0,mg=String(play.max_gain||""),mG=mg==="Unlimited"?ml*5:Number(mg.replace(/[$,]/g,""))||0,rr=ml>0?mG/ml:0;
+  if(rr>=3){s+=20;reasons.push({t:"R/R "+rr.toFixed(1)+":1",v:"+20",c:C.green,d:"Gain ≥3× max loss"})}else if(rr>=1.5){s+=10;reasons.push({t:"R/R "+rr.toFixed(1)+":1",v:"+10",c:C.green,d:"Acceptable risk/reward"})}else if(rr>=1){reasons.push({t:"R/R "+rr.toFixed(1)+":1",v:"0",c:C.amber,d:"Marginal — gain barely exceeds risk"})}else if(rr>0){s-=20;reasons.push({t:"R/R "+rr.toFixed(1)+":1",v:"-20",c:C.red,d:"Max loss exceeds max gain"})}
+  const be=Math.abs(play.pct_to_breakeven||0);if(be<=2){s+=10;reasons.push({t:be.toFixed(1)+"% to BE",v:"+10",c:C.green,d:"Very achievable"})}else if(be<=5){s+=5;reasons.push({t:be.toFixed(1)+"% to BE",v:"+5",c:C.green,d:"Reasonable"})}else if(be>10){s-=10;reasons.push({t:be.toFixed(1)+"% to BE",v:"-10",c:C.red,d:"Needs >10% move"})}else{s-=5;reasons.push({t:be.toFixed(1)+"% to BE",v:"-5",c:C.amber,d:"Moderate distance"})}
+  const iv=play.iv||0;if(iv>80){s-=15;reasons.push({t:"IV "+iv+"%",v:"-15",c:C.red,d:"Extreme IV — expensive premium, IV crush risk"})}else if(iv>50){s-=5;reasons.push({t:"IV "+iv+"%",v:"-5",c:C.amber,d:"Elevated IV — premium expensive"})}else if(iv<25&&iv>0){s+=5;reasons.push({t:"IV "+iv+"%",v:"+5",c:C.green,d:"Low IV — cheap options"})}
+  const vol=play.volume||0,oi=play.open_interest||0;if(vol>=500&&oi>=1000){s+=10;reasons.push({t:"Vol "+vol+"/OI "+oi,v:"+10",c:C.green,d:"Excellent liquidity"})}else if(vol>=100&&oi>=200){s+=5;reasons.push({t:"Vol "+vol+"/OI "+oi,v:"+5",c:C.green,d:"Adequate liquidity"})}else if(vol<20||oi<50){s-=15;reasons.push({t:"Vol "+vol+"/OI "+oi,v:"-15",c:C.red,d:"Very thin — wide spreads"})}
+  if(play.bid!=null&&play.ask!=null&&play.ask>0){const sp=(play.ask-play.bid)/play.ask*100;if(sp>20){s-=10;reasons.push({t:sp.toFixed(0)+"% spread",v:"-10",c:C.red,d:"Massive bid/ask spread"})}else if(sp>10){s-=5;reasons.push({t:sp.toFixed(0)+"% spread",v:"-5",c:C.amber,d:"Wide spread"})}}
+  if(ml>2000){s-=5;reasons.push({t:"$"+ml.toLocaleString()+" loss",v:"-5",c:C.red,d:"Large absolute loss/contract"})}
+  const f=Math.max(0,Math.min(100,s)),g=f>=70?"PASS":f>=45?"CAUTION":"FAIL",gc=f>=70?C.green:f>=45?C.amber:C.red;
+  return{score:f,grade:g,gradeColor:gc,reasons,rr:rr.toFixed(1)}}
+
+// ─── Global Market Bar ───
+function MarketBar(){
+  const [indices,setIndices]=useState(null);
+  useEffect(()=>{api("/market/indices").then(d=>{if(Array.isArray(d))setIndices(d)})},[]);
+  if(!indices)return React.createElement("div",{style:{fontSize:12,color:C.textSec,padding:"8px 0",textAlign:"center"}},"Loading global markets...");
+  return React.createElement("div",null,
+    React.createElement("h2",{style:{fontSize:14,fontWeight:700,marginBottom:10,color:C.textSec,textTransform:"uppercase",letterSpacing:".06em"}},"Global Markets"),
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}},
+      indices.map(idx=>{
+        const up=idx.change_pct!=null&&idx.change_pct>=0;
+        const dn=idx.change_pct!=null&&idx.change_pct<0;
+        const col=up?C.green:dn?C.red:C.textSec;
+        const bg=up?C.greenBg:dn?C.redBg:C.bgCard;
+        const brd=up?C.greenBorder:dn?C.redBorder:C.border;
+        return React.createElement("div",{key:idx.symbol,style:{padding:"10px 12px",background:bg,border:"1px solid "+brd,borderRadius:10,display:"flex",flexDirection:"column",gap:3}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+            React.createElement("span",{style:{fontSize:14}},(idx.flag||"🌐")),
+            React.createElement("span",{style:{fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:5,background:idx.is_open?"#e8f5e9":"#f5f5f5",color:idx.is_open?C.green:C.textTri,border:"1px solid "+(idx.is_open?C.greenBorder:C.border)}},idx.is_open?"OPEN":"CLOSED")),
+          React.createElement("div",{style:{fontSize:11,fontWeight:600,color:C.text,lineHeight:1.2}},idx.name),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:13,fontWeight:700,color:C.text}},idx.price!=null?idx.price.toLocaleString("en-US",{maximumFractionDigits:2}):"—"),
+          React.createElement("div",{style:{fontFamily:mono,fontSize:12,fontWeight:600,color:col}},idx.change_pct!=null?(up?"+":"")+idx.change_pct.toFixed(2)+"%":"—"));})));
+}
+
+// ─── Overview ───
+function OverviewTab({stats,latest,onSelectPlay,tz}){
+  const [momentum,setMomentum]=useState(null);
+  const [momFilter,setMomFilter]=useState("all");
+  useEffect(()=>{api("/signals/momentum?limit=20").then(d=>{if(d)setMomentum(d)})},[]);
+  if(!stats)return React.createElement("div",{style:{color:C.textSec,padding:40,textAlign:"center"}},"Loading...");
+  const res=latest?.results||[],topLT=res.slice(0,10),topOpt=[...res].sort((a,b)=>b.opt_score-a.opt_score).slice(0,10),rsiData=[...res].sort((a,b)=>a.rsi-b.rsi);
+  const momEvt=(momentum?.events||[]).filter(e=>momFilter==="all"||(momFilter==="up"&&e.impact==="positive")||(momFilter==="down"&&e.impact==="negative"));
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:20}},
+    React.createElement("div",{style:{padding:"16px 20px",background:"linear-gradient(135deg,#f0f0ff,#f5f0ff)",borderRadius:14,border:"1px solid #d9d4f8",fontSize:13,color:C.text,lineHeight:1.7}},
+      React.createElement("strong",null,"Augur")," scans ",React.createElement("strong",null,res.length+" tickers")," across cyber, energy, defense, tech, health, financials, and more — every 30 minutes. ",React.createElement("strong",null,"LT Score")," = fundamentals (Rule of 40, valuation, FCF, trend). ",React.createElement("strong",null,"Opt Score")," = options opportunity (earnings, IV, direction, technicals). Use the ",React.createElement("strong",null,"Watchlist")," to track custom tickers."),
+    React.createElement(Card,{style:{padding:16}},React.createElement(MarketBar,null)),
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}},
+      React.createElement(Metric,{label:"Total Scans",value:stats.total_scans}),React.createElement(Metric,{label:"Universe",value:res.length+" tickers"}),React.createElement(Metric,{label:"Records",value:(stats.total_score_records||0).toLocaleString()}),React.createElement(Metric,{label:"Last Scan",value:stats.last_scan?fmtTS(stats.last_scan,tz):"—"})),
+    React.createElement(Card,{style:{padding:20}},React.createElement(KillerPlaysWidget,{onSelectPlay})),
+    React.createElement(Card,{style:{padding:20}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:momEvt.length>0?14:8}},
+        React.createElement("h2",{style:{fontSize:15,fontWeight:700,margin:0}},"🔥 Score Momentum"),
+        React.createElement("div",{style:{display:"flex",gap:4}},
+          [["all","All"],["up","📈 Gainers"],["down","📉 Losers"]].map(([k,l])=>React.createElement("button",{key:k,onClick:()=>setMomFilter(k),style:{padding:"4px 10px",borderRadius:7,fontSize:11,fontWeight:600,cursor:"pointer",background:momFilter===k?C.blueBg:C.bgCard,border:"1px solid "+(momFilter===k?C.blue+"40":C.border),color:momFilter===k?C.blue:C.textSec}},l)))),
+      momEvt.length===0
+        ? React.createElement("div",{style:{fontSize:12,color:C.textSec,padding:"4px 0"}},"No significant score changes yet — momentum signals appear after consecutive scans show ≥8pt moves.")
+        : React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:4}},
+            momEvt.slice(0,10).map((e,i)=>{
+              const up=e.impact==="positive",col=up?C.green:C.red;
+              const ageMs=e.scan_ts?Date.now()-new Date(e.scan_ts.includes('T')?e.scan_ts:e.scan_ts.replace(' ','T')+'Z'):0;
+              const age=ageMs>0?(ageMs<3600000?Math.round(ageMs/60000)+"m":Math.round(ageMs/3600000)+"h")+" ago":"";
+              return React.createElement("div",{key:i,onClick:()=>onSelectPlay&&onSelectPlay(e.ticker),style:{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:i%2===0?C.bg:"transparent",cursor:"pointer",borderLeft:"3px solid "+col+"30"}},
+                React.createElement("span",{style:{fontSize:12,fontWeight:700,fontFamily:mono,minWidth:50,color:C.text}},e.ticker),
+                React.createElement("span",{style:{flex:1,fontSize:11,color:C.textSec,lineHeight:1.4}},e.signal_text),
+                React.createElement("span",{style:{fontSize:10,color:C.textTri,whiteSpace:"nowrap",marginLeft:4}},age))}))),
+    React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}},
+      React.createElement(Card,{style:{padding:20}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:14}},"Long-Term Leaders"),topLT.map((r,i)=>React.createElement("div",{key:r.ticker,style:{display:"grid",gridTemplateColumns:"20px 56px 1fr 60px",alignItems:"center",gap:8,padding:"5px 0"}},React.createElement("span",{style:{fontSize:11,color:C.textTri,fontWeight:600}},i+1),React.createElement("span",{style:{fontSize:13,fontWeight:700,fontFamily:mono}},r.ticker),React.createElement(ScoreBar,{score:r.lt_score}),React.createElement("span",{style:{fontSize:12,color:C.textSec,textAlign:"right",fontFamily:mono}},"$"+r.price)))),
+      React.createElement(Card,{style:{padding:20}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:14}},"Options Leaders"),topOpt.map((r,i)=>React.createElement("div",{key:r.ticker,style:{display:"grid",gridTemplateColumns:"20px 56px 1fr 60px",alignItems:"center",gap:8,padding:"5px 0"}},React.createElement("span",{style:{fontSize:11,color:C.textTri,fontWeight:600}},i+1),React.createElement("span",{style:{fontSize:13,fontWeight:700,fontFamily:mono}},r.ticker),React.createElement(ScoreBar,{score:r.opt_score}),React.createElement("span",{style:{fontSize:12,color:C.textSec,textAlign:"right",fontFamily:mono}},"RSI "+(r.rsi!=null?Math.round(r.rsi):"—")))))),
+    React.createElement(Card,{style:{padding:20}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:14}},"Intelligence Layers"),
+      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}},
+        [{i:"📋",n:"SEC Filings",d:"Insider transactions, analyst ratings, holdings"},{i:"💬",n:"Sentiment",d:"Social sentiment + analyst consensus"},{i:"🐋",n:"Whale Flow",d:"Unusual options activity, block trades"},{i:"🛡",n:"Threat Intel",d:"Live breach news, service outages, macro regime — feeds directly into opt_score"}].map(l=>React.createElement("div",{key:l.n,style:{padding:16,background:C.bg,borderRadius:12,border:"1px solid "+C.border}},React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},React.createElement("span",{style:{fontSize:16}},l.i),React.createElement("span",{style:{fontSize:13,fontWeight:700}},l.n),React.createElement("span",{style:{marginLeft:"auto",fontSize:10,fontWeight:600,padding:"3px 8px",borderRadius:6,background:C.greenBg,color:C.green,border:"1px solid "+C.greenBorder}},"Live")),React.createElement("div",{style:{fontSize:12,color:C.textSec,lineHeight:1.5}},l.d))))),
+    rsiData.length>0&&React.createElement(Card,{style:{padding:20}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:12}},"RSI Overview"),React.createElement(SvgBarChart,{data:rsiData,dataKey:"rsi",labelKey:"ticker",height:220,colorFn:d=>d.rsi<30?C.green:d.rsi>70?C.red:C.amber})));}
+
+// ─── Scores (Long Tab) ───
+function ScoresTab({latest,personalScores,authUser}){
+  const [sel,setSel]=useState(null),[hist,setHist]=useState(null),[filter,setFilter]=useState("all"),[signals,setSignals]=useState(null),[showSig,setShowSig]=useState(false);
+  const results=latest?.results||[];const load=useCallback(async t=>{setSel(t);setHist(null);setSignals(null);setShowSig(false);const d=await api("/scores/"+t+"?days=180");if(d)setHist(d)},[]);
+  // Build personal scores lookup
+  const psMap=React.useMemo(()=>{if(!personalScores?.scores)return{};const m={};personalScores.scores.forEach(s=>{m[s.ticker]=s});return m},[personalScores]);
+  const lr=sel?results.find(r=>r.ticker===sel):null,L=hist?.history?.length?hist.history[hist.history.length-1]:null,F=hist?.history?.length?hist.history[0]:null;
+  const cd=hist?.history?.map(h=>{const ds=fmtDateOnly(h.timestamp);return({date:ds,lt_score:h.lt_score,opt_score:h.opt_score,price:h.price,rsi:h.rsi})})||[];
+  function applyFilter(r){
+    if(filter==="all")return true;
+    if(filter==="cyber"||filter==="energy"||filter==="defense")return r.sector===filter;
+    if(filter==="tech")return r.sector==="broad"&&r.subsector==="Technology";
+    if(filter==="health")return r.sector==="broad"&&r.subsector==="Health Care";
+    if(filter==="finance")return r.sector==="broad"&&r.subsector==="Financials";
+    if(filter==="consumer")return r.sector==="broad"&&(r.subsector==="Consumer Disc"||r.subsector==="Consumer Staples");
+    if(filter==="industrial")return r.sector==="broad"&&r.subsector==="Industrials";
+    if(filter==="broad")return r.sector==="broad";
+    return true;
+  }
+  const fl=results.filter(applyFilter);
+  const allFilters=[["all","All"],["cyber","Cyber"],["energy","Energy"],["defense","Defense"],["tech","Tech"],["health","Health"],["finance","Finance"],["consumer","Consumer"],["industrial","Industrial"],["broad","Broad"]];
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",gap:16,minHeight:"60vh"}},
+    React.createElement("div",{style:{width:320,flexShrink:0,display:"flex",flexDirection:"column",gap:8}},
+      React.createElement("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},allFilters.map(([s,l])=>React.createElement("button",{key:s,onClick:()=>setFilter(s),style:{padding:"5px 10px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:filter===s?C.blue+"12":"transparent",border:"1px solid "+(filter===s?C.blue+"30":C.border),color:filter===s?C.blue:C.textSec}},l))),
+      React.createElement(Card,{style:{padding:12,maxHeight:"65vh",overflowY:"auto"}},React.createElement("div",{style:{fontSize:11,color:C.textSec,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",padding:"4px 8px",marginBottom:4}},fl.length+" tickers"),
+        fl.map(r=>{const sd=r.short_delta;const sdEl=sd!=null&&Math.abs(sd)>=2?React.createElement("span",{title:"Short interest delta: "+(sd>0?"+":"")+sd+"pp (60d)",style:{fontSize:10,fontWeight:700,color:sd<-3?C.green:sd>3?C.red:C.textTri,lineHeight:1}},sd<-3?"↓SI":sd>3?"↑SI":"·"):null;const isBuyZone=r.lt_score>=55&&r.rsi<=45;const ps=psMap[r.ticker];const hasPS=!!ps;return React.createElement("div",{key:r.ticker,onClick:()=>load(r.ticker),style:{display:"grid",gridTemplateColumns:hasPS?"54px 1fr 44px 36px 44px 22px":"54px 1fr 44px 44px 22px",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:sel===r.ticker?C.blueBg:"transparent",borderLeft:sel===r.ticker?"3px solid "+C.blue:"3px solid transparent"}},React.createElement("span",{style:{fontSize:13,fontWeight:700,fontFamily:mono}},r.ticker),React.createElement("div",null,React.createElement("span",{style:{fontSize:11,color:C.textSec,fontFamily:mono}},"$"+r.price),isBuyZone&&React.createElement("span",{style:{marginLeft:4,fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:4,background:C.greenBg,color:C.green,border:"1px solid "+C.greenBorder}},"🟢 Buy Zone")),React.createElement(Badge,{color:r.lt_score>=50?C.green:r.lt_score>=30?C.amber:C.textTri},r.lt_score),hasPS&&React.createElement("span",{title:"Your Augur LT score",style:{fontSize:10,fontWeight:700,padding:"2px 5px",borderRadius:5,background:ps.lt_delta>0?C.greenBg:ps.lt_delta<0?C.redBg:"#f5f5f5",color:ps.lt_delta>0?C.green:ps.lt_delta<0?C.red:C.purple,fontFamily:mono,border:"1px solid "+(ps.lt_delta>0?C.greenBorder:ps.lt_delta<0?C.redBorder:"#e5e5ea")}},Math.round(ps.user_lt_score)),React.createElement("span",{style:{fontSize:11,fontWeight:600,padding:"2px 6px",borderRadius:5,background:"#f5f5f5",color:C.textSec,fontFamily:mono}},r.opt_score),sdEl||React.createElement("span",null))}))),
+    React.createElement("div",{style:{flex:1}},
+      !sel?React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{style:{fontSize:32,marginBottom:12,opacity:.5}},"📈"),React.createElement("div",{style:{fontSize:15,fontWeight:600,marginBottom:4}},"Long-Term Scores"),React.createElement("div",{style:{fontSize:12,color:C.textSec,marginBottom:10}},"Long-term value positions · Retirement account ideas"),React.createElement("div",{style:{fontSize:13,color:C.textSec,maxWidth:400,margin:"0 auto",lineHeight:1.6}},"Select a ticker to view score history, component breakdown, and layer status."))
+      :!L?React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{className:"pulse",style:{fontSize:14,color:C.textSec}},"Loading "+sel+"..."))
+      :React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:16}},
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:psMap[sel]?"1fr 1fr 1fr 1fr 1fr":"1fr 1fr 1fr 1fr",gap:12}},React.createElement(Metric,{label:"LT Score",value:L.lt_score,color:L.lt_score>=60?C.green:L.lt_score>=35?C.amber:C.red,sub:"System score"}),psMap[sel]&&React.createElement(Metric,{label:"⚔️ Your LT",value:Math.round(psMap[sel].user_lt_score),color:psMap[sel].user_lt_score>=60?C.green:psMap[sel].user_lt_score>=35?C.amber:C.red,sub:(psMap[sel].lt_delta>=0?"+":"")+psMap[sel].lt_delta+" vs system"}),React.createElement(Metric,{label:"Opt Score",value:L.opt_score,color:L.opt_score>=40?C.green:L.opt_score>=25?C.amber:C.red,sub:"Options opportunity"}),React.createElement(Metric,{label:"LT Δ",value:(L.lt_score-F.lt_score>=0?"+":"")+(L.lt_score-F.lt_score),color:L.lt_score>=F.lt_score?C.green:C.red}),React.createElement(Metric,{label:"Price",value:"$"+L.price})),
+        lr&&React.createElement("div",{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}},
+          React.createElement(LayerPill,{name:"SEC",icon:"📋",score:lr.sec_score}),
+          React.createElement(LayerPill,{name:"Sent",icon:"💬",score:lr.sentiment_score}),
+          React.createElement(LayerPill,{name:"Whale",icon:"🐋",score:lr.whale_score}),
+          lr.short_delta!=null&&Math.abs(lr.short_delta)>=2&&React.createElement("span",{title:"Short interest delta (60d): "+(lr.short_delta>0?"+":"")+lr.short_delta+"pp",style:{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,background:lr.short_delta<-3?C.greenBg:lr.short_delta>3?C.redBg:"#f5f5f5",color:lr.short_delta<-3?C.green:lr.short_delta>3?C.red:C.textSec,border:"1px solid "+(lr.short_delta<-3?C.green+"40":lr.short_delta>3?C.redBorder:"#e0e0e0")}},lr.short_delta<-3?"🔻 SI covering":"📈 SI building"),
+          lr.outage_status==="outage"&&React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,background:C.redBg,color:C.red,border:"1px solid "+C.redBorder}},"🔴 OUTAGE"),
+          lr.outage_status==="degraded"&&React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,background:"#fff8e1",color:C.amber,border:"1px solid #ffe082"}},"⚠ DEGRADED"),
+          lr.breach_victim&&React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,background:C.redBg,color:C.red,border:"1px solid "+C.redBorder}},"🚨 BREACH"),
+          lr.demand_signal&&!lr.breach_victim&&React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,background:"#fff8e1",color:"#e65100",border:"1px solid #ffcc80"}},"🌋 DEMAND"),
+          lr.threat_score!=null&&lr.threat_score<100&&React.createElement("span",{style:{fontSize:10,color:C.textTri,marginLeft:4}},"threat: "+lr.threat_score+"/100")),
+        lr&&React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},React.createElement(BreakdownPanel,{items:ltBreakdown(lr),title:"LT Score Breakdown",accent:C.green}),React.createElement(BreakdownPanel,{items:optBreakdown(lr),title:"Opt Score Breakdown",accent:C.blue})),
+        React.createElement(Card,{style:{padding:20,cursor:"pointer"},onClick:async()=>{if(!showSig&&!signals){const d=await api("/signals/"+sel+"/recent?limit=40");if(d)setSignals(d)}setShowSig(s=>!s)}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showSig?12:0}},
+            React.createElement("h2",{style:{fontSize:15,fontWeight:700,margin:0}},"📡 Scoring Signals Feed"),
+            React.createElement("span",{style:{fontSize:11,color:C.textSec}},showSig?"▲ hide":"▼ expand — why these scores?")),
+          showSig&&React.createElement("div",{onClick:e=>e.stopPropagation()},
+            !signals&&React.createElement("div",{style:{fontSize:12,color:C.textSec,padding:"8px 0",textAlign:"center"}},"Loading signals..."),
+            signals&&signals.signals&&signals.signals.length===0&&React.createElement("div",{style:{fontSize:12,color:C.textSec,padding:"8px 0"}},"No signals yet — populate after next scan."),
+            signals&&signals.signals&&signals.signals.map((s,i)=>{
+              const col=s.impact==="positive"?C.green:s.impact==="negative"?C.red:C.textSec;
+              const ic=s.impact==="positive"?"🟢":s.impact==="negative"?"🔴":"⚪";
+              return React.createElement("div",{key:i,style:{display:"flex",gap:8,padding:"5px 8px",borderRadius:6,background:i%2===0?"#f9f9fb":"transparent"}},
+                React.createElement("span",{style:{fontSize:12,flexShrink:0}},ic),
+                React.createElement("span",{style:{fontSize:11,color:col,flex:1,lineHeight:1.4}},s.signal_text),
+                React.createElement("span",{style:{fontSize:9,color:C.textTri,whiteSpace:"nowrap",marginLeft:4}},s.scan_ts?.slice(0,10)||""))}))),
+        React.createElement(Card,{style:{padding:20}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:4}},sel+" — Score History"),React.createElement(SvgAreaChart,{data:cd,lines:[{key:"lt_score",name:"LT Score",color:C.green},{key:"opt_score",name:"Opt Score",color:C.blue}],height:260})),
+        React.createElement(Card,{style:{padding:20}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:12}},sel+" — Price & Signals"),React.createElement(SvgPriceChart,{ticker:sel})))));}
+
+// ─── Plays Tab ───
+function PlaysTab({latest,defaultTicker,tz}){
+  const [sel,setSel]=useState(null),[data,setData]=useState(null),[msg,setMsg]=useState(""),[showW,setShowW]=useState(false),[fetchedAt,setFetchedAt]=useState(null),[tick,setTick]=useState(0);
+  const [showHist,setShowHist]=useState(false),[playHist,setPlayHist]=useState(null),[histLoading,setHistLoading]=useState(false);
+  async function loadHistory(){if(playHist)return;setHistLoading(true);const d=await api("/plays/history/all?limit=50");if(d){setPlayHist(d)}setHistLoading(false);}
+  // Auto-load if a ticker was passed from Killer Plays
+  useEffect(()=>{if(defaultTicker&&defaultTicker!==sel)loadPlays(defaultTicker)},[defaultTicker]);
+  const [ow,setOw]=useState({earnings_catalyst:25,iv_context:20,directional:20,technical:15,liquidity:10,asymmetry:10});
+  const poller=useRef(null),timer=useRef(null),autoRef=useRef(null);
+  const results=latest?.results||[],opts=[...results].sort((a,b)=>b.opt_score-a.opt_score);
+  useEffect(()=>{api("/weights").then(w=>{if(w?.active_weights?.opt)setOw(w.active_weights.opt)})},[]);
+  function cleanup(){if(poller.current)clearInterval(poller.current);if(timer.current)clearTimeout(timer.current);if(autoRef.current){clearInterval(autoRef.current);autoRef.current=null}poller.current=timer.current=null}
+  useEffect(()=>{const id=setInterval(()=>setTick(n=>n+1),20000);return ()=>clearInterval(id)},[]);
+  async function loadPlays(t,force=false){cleanup();setSel(t);if(!force)setData(null);setMsg("Starting...");
+    const d=await api("/plays/"+t+"/generate"+(force?"?force=true":""),{method:"POST"});if(!d){setData({ticker:t,plays:[],error:"Could not reach API"});return}
+    const gotData=r=>{setData(r);setFetchedAt(Date.now());if(!r.error&&r.plays?.length){autoRef.current=setInterval(()=>loadPlays(t,true),120000)}};
+    if(d.status==="cached"){gotData(d.result);return}setMsg(d.message||"Working...");
+    poller.current=setInterval(async()=>{const s=await api("/plays/"+t+"/status");if(!s)return;if(s.status==="done"){if(poller.current)clearInterval(poller.current);if(timer.current)clearTimeout(timer.current);poller.current=timer.current=null;gotData(s.result||{ticker:t,plays:[],error:"No data"})}else if(s.status==="running")setMsg(s.message||"Working...")},2000);
+    timer.current=setTimeout(()=>{cleanup();setData(prev=>prev||{ticker:t,plays:[],error:"Timed out"})},45000)}
+  useEffect(()=>()=>cleanup(),[]);
+  function mc(lb,vl,cl){return React.createElement("div",{style:{padding:"10px 12px",background:C.bg,borderRadius:10}},React.createElement("div",{style:{fontSize:10,color:C.textSec,fontWeight:600,textTransform:"uppercase",letterSpacing:".03em",marginBottom:2}},lb),React.createElement("div",{style:{fontSize:15,fontWeight:700,fontFamily:mono,color:cl||C.text}},vl))}
+  const wt=Object.values(ow).reduce((a,b)=>a+b,0);
+
+  let detail;
+  if(!sel){
+    const stats=playHist?.stats,plays=playHist?.plays||[];
+    detail=React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+      React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{style:{fontSize:32,marginBottom:12,opacity:.5}},"⚡"),React.createElement("div",{style:{fontSize:16,fontWeight:600,marginBottom:8}},"Options Play Builder"),React.createElement("div",{style:{fontSize:13,color:C.textSec,maxWidth:480,margin:"0 auto",lineHeight:1.7}},"Select a ticker to fetch live options chain and generate plays. Each includes a full scoring breakdown, reality check, and risk/reward analysis.")),
+      React.createElement(Card,{style:{padding:20,cursor:"pointer"},onClick:()=>{if(!showHist){loadHistory()}setShowHist(s=>!s)}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showHist?14:0}},
+          React.createElement("h2",{style:{fontSize:15,fontWeight:700,margin:0}},"📈 Play History"),
+          React.createElement("span",{style:{fontSize:11,color:C.textSec}},showHist?"▲ hide":"▼ expand — P&L for tracked plays")),
+        showHist&&React.createElement("div",{onClick:e=>e.stopPropagation()},
+          histLoading&&React.createElement("div",{style:{fontSize:12,color:C.textSec,padding:"12px 0",textAlign:"center"}},"Loading play history..."),
+          !histLoading&&plays.length===0&&React.createElement("div",{style:{fontSize:12,color:C.textSec,padding:"8px 0"}},"No closed plays yet — P&L tracking begins when plays with RC ≥ 70 are generated and their options expire."),
+          !histLoading&&stats&&stats.total_closed>0&&React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}},
+            React.createElement(Metric,{label:"Closed Plays",value:stats.total_closed}),
+            React.createElement(Metric,{label:"Win Rate",value:stats.win_rate!=null?stats.win_rate+"%":"—",color:stats.win_rate>=55?C.green:stats.win_rate>=45?C.amber:C.red}),
+            React.createElement(Metric,{label:"Avg P&L",value:stats.avg_pnl!=null?(stats.avg_pnl>0?"+":"")+stats.avg_pnl+"%":"—",color:stats.avg_pnl>0?C.green:stats.avg_pnl<0?C.red:C.textSec}),
+            React.createElement(Metric,{label:"Best Play",value:stats.best_play?stats.best_play.ticker:"—",sub:stats.best_play&&stats.best_play.pnl_pct!=null?(stats.best_play.pnl_pct>0?"+":"")+stats.best_play.pnl_pct+"%":""})),
+          !histLoading&&plays.length>0&&React.createElement("div",{style:{overflowX:"auto"}},
+            React.createElement("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:11}},
+              React.createElement("thead",null,React.createElement("tr",null,["Ticker","Strategy","Direction","Expiry","DTE","RC","Entry","P&L","Date"].map(h=>React.createElement("th",{key:h,style:{textAlign:"left",padding:"4px 8px",color:C.textSec,fontWeight:600,borderBottom:"1px solid "+C.border,whiteSpace:"nowrap"}},h)))),
+              React.createElement("tbody",null,plays.map((p,i)=>{const pnl=p.pnl_pct;const pnlColor=pnl==null?C.textTri:pnl>0?C.green:C.red;return React.createElement("tr",{key:i,style:{background:i%2===0?C.bg:"transparent"}},
+                React.createElement("td",{style:{padding:"5px 8px",fontWeight:700,fontFamily:mono}},p.ticker),
+                React.createElement("td",{style:{padding:"5px 8px",color:C.textSec}},p.strategy||"—"),
+                React.createElement("td",{style:{padding:"5px 8px"}},(p.direction||"").charAt(0).toUpperCase()+(p.direction||"").slice(1)),
+                React.createElement("td",{style:{padding:"5px 8px",fontFamily:mono}},fmtExpiry(p.expiry)),
+                React.createElement("td",{style:{padding:"5px 8px",color:C.textTri}},p.dte||"—"),
+                React.createElement("td",{style:{padding:"5px 8px",fontWeight:600,color:p.rc_score>=70?C.green:p.rc_score>=50?C.amber:C.textTri}},p.rc_score||"—"),
+                React.createElement("td",{style:{padding:"5px 8px",fontFamily:mono}},"$"+(p.entry_price||"—")),
+                React.createElement("td",{style:{padding:"5px 8px",fontWeight:700,fontFamily:mono,color:pnlColor}},pnl!=null?(pnl>0?"+":"")+pnl+"%":"—"),
+                React.createElement("td",{style:{padding:"5px 8px",color:C.textTri}},p.outcome_date||p.generated_at?.slice(0,10)||"—"))})))))),
+      React.createElement(Card,{style:{padding:24}},React.createElement("h3",{style:{fontSize:14,fontWeight:700,marginBottom:12}},"How Options Scoring Works"),
+        React.createElement("div",{style:{fontSize:12,color:C.textSec,lineHeight:1.7,marginBottom:12}},"The Options Score (0–100) has six weighted components. Each measures a different dimension of opportunity:"),
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+          [{n:"Earnings Catalyst",w:ow.earnings_catalyst,d:"Proximity to earnings — #1 IV driver. Sweet spot: 5–14 days out."},{n:"IV Context",w:ow.iv_context,d:"IV rank vs history. Low = cheap (buy). High = expensive (sell/spread)."},{n:"Directional Conviction",w:ow.directional,d:"RSI, SMA alignment, volume. Strong = clear call/put bias."},{n:"Technical Setup",w:ow.technical,d:"BB squeeze + RSI extremes. Breakout or mean-reversion signals."},{n:"Liquidity",w:ow.liquidity,d:"Market cap and options volume. Better liquidity = tighter fills."},{n:"Asymmetry",w:ow.asymmetry,d:"Short squeeze, high beta, whale flow. Outsized move potential."}].map(c=>React.createElement("div",{key:c.n,style:{padding:12,background:C.bg,borderRadius:10,border:"1px solid "+C.border}},React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},React.createElement("span",{style:{fontSize:12,fontWeight:700}},c.n),React.createElement("span",{style:{fontSize:11,fontWeight:700,fontFamily:mono,color:C.blue}},c.w+"pts")),React.createElement("div",{style:{fontSize:11,color:C.textSec,lineHeight:1.5}},c.d))))))
+  } else if(!data){
+    detail=React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{className:"pulse",style:{fontSize:24,marginBottom:12}},"⟳"),React.createElement("div",{style:{fontSize:14,color:C.textSec,fontWeight:500,marginBottom:8}},"Generating plays for "+sel),React.createElement("div",{style:{fontSize:12,color:C.textTri}},msg))
+  } else if(data.error&&(!data.plays||!data.plays.length)){
+    detail=React.createElement(Card,{style:{padding:24}},React.createElement("h2",{style:{fontSize:18,fontWeight:700}},sel),data.price&&React.createElement("div",{style:{fontSize:22,fontWeight:700,fontFamily:mono,margin:"8px 0"}},"$"+data.price),React.createElement("div",{style:{marginTop:12,padding:16,background:C.redBg,border:"1px solid "+C.redBorder,borderRadius:10}},React.createElement("span",{style:{color:C.red,fontSize:13}},"⚠ "+data.error)))
+  } else {
+    const p=data,playsRC=(p.plays||[]).map(pl=>({...pl,rc:computeRC(pl)}));playsRC.sort((a,b)=>b.rc.score-a.rc.score);
+    const threatRow=results.find(r=>r.ticker===sel);
+    const threatActive=threatRow&&(threatRow.outage_status==="outage"||threatRow.outage_status==="degraded"||threatRow.breach_victim);
+    detail=React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:16}},
+      threatActive&&React.createElement("div",{style:{padding:"10px 16px",background:threatRow.outage_status==="outage"||threatRow.breach_victim?C.redBg:"#fff8e1",border:"1px solid "+(threatRow.outage_status==="outage"||threatRow.breach_victim?C.redBorder:"#ffe082"),borderRadius:10,fontSize:12,color:threatRow.outage_status==="outage"||threatRow.breach_victim?C.red:C.amber,fontWeight:500,display:"flex",alignItems:"center",gap:8}},
+        React.createElement("span",{style:{fontSize:16}},threatRow.outage_status==="outage"?"🔴":threatRow.breach_victim?"🚨":"⚠️"),
+        React.createElement("span",null,"Threat signal active for "+sel+": ",
+          threatRow.outage_status==="outage"?"Active service outage detected — bearish signal. ":
+          threatRow.outage_status==="degraded"?"Service degraded. ":"",
+          threatRow.breach_victim?"Ticker mentioned in recent breach/attack news. ":"",
+          "Opt score adjusted by "+(threatRow.threat_score-100)+"pts. ",
+          React.createElement("strong",null,"Review Intel tab for details."))),
+      React.createElement(Card,{style:{padding:20}},
+        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8}},React.createElement("div",null,React.createElement("h2",{style:{fontSize:18,fontWeight:700}},p.ticker+" Options Intelligence"),React.createElement("p",{style:{fontSize:12,color:C.textSec}},playsRC.length+" play"+(playsRC.length!==1?"s":"")+" · sorted by reality check")),React.createElement("div",{style:{textAlign:"right"}},React.createElement("div",{style:{fontSize:26,fontWeight:700,fontFamily:mono}},"$"+p.price),React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end",marginTop:4}},fetchedAt&&React.createElement("span",{style:{fontSize:10,fontWeight:600,color:(Date.now()-fetchedAt)<30000?C.green:(Date.now()-fetchedAt)<90000?C.amber:C.red}},(Date.now()-fetchedAt)<10000?"● Live":(Date.now()-fetchedAt)<60000?Math.round((Date.now()-fetchedAt)/1000)+"s ago":Math.round((Date.now()-fetchedAt)/60000)+"m ago"),React.createElement("button",{onClick:e=>{e.stopPropagation();loadPlays(sel,true)},style:{fontSize:11,padding:"3px 10px",borderRadius:6,border:"1px solid "+C.border,background:C.bg,cursor:"pointer",color:C.blue,fontWeight:600}},"🔄 Refresh"),React.createElement("span",{style:{fontSize:11,color:C.textSec}},fmtTimeOnly(p.timestamp,tz))))),
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:10,marginTop:14}},
+          React.createElement(Metric,{label:"RSI",value:p.rsi!=null?Math.round(p.rsi):"—",color:p.rsi!=null?(p.rsi<30?C.green:p.rsi>70?C.red:C.amber):C.textSec,sub:p.rsi!=null?(p.rsi<30?"Oversold":p.rsi>70?"Overbought":"Neutral"):""}),
+          React.createElement(Metric,{label:"IV 30d",value:p.iv_30d!=null?p.iv_30d+"%":"—",color:p.iv_30d!=null?(p.iv_30d>50?C.red:p.iv_30d>30?C.amber:C.green):C.textSec}),
+          React.createElement(Metric,{label:"Earnings",value:p.days_to_earnings!=null?p.days_to_earnings+"d":"—",color:p.days_to_earnings!=null&&p.days_to_earnings<=14?C.green:C.textSec}),
+          React.createElement(Metric,{label:"Beta",value:p.beta!=null?Number(p.beta).toFixed(1):"—"}),
+          React.createElement(Metric,{label:"Vol Ratio",value:p.vol_ratio!=null?p.vol_ratio+"x":"—"}))),
+      ...(playsRC.length>0?playsRC.map((pl,i)=>{const dC=pl.direction.indexOf("Bullish")>=0?C.green:pl.direction.indexOf("Bearish")>=0?C.red:C.blue,rc=pl.rc;
+        return React.createElement(Card,{key:i,style:{borderLeft:"3px solid "+dC,padding:0,overflow:"hidden"}},
+          React.createElement("div",{style:{padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,borderBottom:"1px solid "+C.border}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},React.createElement("span",{style:{fontSize:20}},pl.emoji),React.createElement("div",null,React.createElement("div",{style:{fontSize:15,fontWeight:700}},pl.strategy),React.createElement(Badge,{color:dC,variant:"pill"},pl.direction))),
+            React.createElement("div",{style:{textAlign:"right"}},React.createElement("div",{style:{fontSize:14,fontWeight:700,fontFamily:mono}},pl.action),React.createElement("div",{style:{fontSize:11,color:C.textSec}},"Exp: "+fmtExpiry(pl.expiry)+" ("+pl.dte+"d)"))),
+          React.createElement("div",{style:{padding:"12px 20px",background:rc.gradeColor+"08",borderBottom:"1px solid "+rc.gradeColor+"20",display:"flex",alignItems:"center",gap:12}},
+            React.createElement("div",{style:{width:40,height:40,borderRadius:10,background:rc.gradeColor+"15",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:mono,fontSize:16,fontWeight:800,color:rc.gradeColor}},rc.score),
+            React.createElement("div",null,React.createElement("div",{style:{fontSize:12,fontWeight:700,color:rc.gradeColor}},rc.grade),React.createElement("div",{style:{fontSize:10,color:C.textSec}},"Reality Check · R/R "+rc.rr+":1"))),
+          React.createElement("div",{style:{padding:"12px 20px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}},mc("Entry","$"+pl.entry_price),mc("Breakeven",""+pl.breakeven),mc("Max Loss","$"+Number(pl.max_loss).toLocaleString(),C.red),mc("Max Gain",""+pl.max_gain,C.green),pl.bid!=null&&mc("Bid/Ask","$"+pl.bid+" / $"+pl.ask),mc("IV",pl.iv+"%",pl.iv>60?C.red:C.amber),mc("Volume",Number(pl.volume).toLocaleString()),mc("Open Int",Number(pl.open_interest).toLocaleString())),
+          React.createElement("div",{style:{padding:"12px 20px",background:C.bg,borderTop:"1px solid "+C.border}},
+            React.createElement("div",{style:{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".04em",color:C.textSec,marginBottom:8}},"Reality Check Breakdown"),
+            rc.reasons.map((r,j)=>React.createElement("div",{key:j,style:{display:"flex",alignItems:"flex-start",gap:8,padding:"4px 0"}},React.createElement("span",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:r.c,minWidth:32,textAlign:"right"}},r.v),React.createElement("div",null,React.createElement("div",{style:{fontSize:12,fontWeight:600}},r.t),React.createElement("div",{style:{fontSize:11,color:C.textSec,lineHeight:1.4}},r.d))))),
+          React.createElement("div",{style:{padding:"12px 20px",borderTop:"1px solid "+C.border}},React.createElement("div",{style:{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".04em",color:C.textSec,marginBottom:4}},"Rationale"),React.createElement("div",{style:{fontSize:12,color:C.text,lineHeight:1.6}},pl.rationale)),
+          React.createElement("div",{style:{padding:"10px 20px",background:C.redBg,borderTop:"1px solid "+C.redBorder}},React.createElement("div",{style:{fontSize:11,color:C.red,fontWeight:500}},"⚠ "+pl.risk_notes)))})
+      :[React.createElement(Card,{key:"e",style:{padding:24,textAlign:"center"}},React.createElement("div",{style:{fontSize:13,color:C.textSec}},"No plays — no earnings catalyst, low IV, or insufficient directional bias."))]))}
+
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",gap:16,minHeight:"60vh"}},
+    React.createElement("div",{style:{width:300,flexShrink:0,display:"flex",flexDirection:"column",gap:12}},
+      React.createElement("button",{onClick:()=>setShowW(!showW),style:{padding:"10px 14px",borderRadius:10,border:"1px solid "+C.border,background:showW?C.blueBg:C.bgCard,color:showW?C.blue:C.textSec,fontSize:12,fontWeight:600,cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",boxShadow:C.shadow}},"⚙ Weight Tuner",React.createElement("span",{style:{fontSize:10,fontFamily:mono}},showW?"▼":"▶")),
+      showW&&React.createElement(Card,{style:{padding:16}},
+        React.createElement("div",{style:{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".04em",color:C.textSec,marginBottom:10}},"Opt Score Weights"),
+        React.createElement("div",{style:{fontSize:10,color:C.textTri,marginBottom:12}},"Adjust how each factor contributes. Total ≈ 100."),
+        [["Earnings",ow.earnings_catalyst,v=>setOw(p=>({...p,earnings_catalyst:v}))],["IV Context",ow.iv_context,v=>setOw(p=>({...p,iv_context:v}))],["Directional",ow.directional,v=>setOw(p=>({...p,directional:v}))],["Technical",ow.technical,v=>setOw(p=>({...p,technical:v}))],["Liquidity",ow.liquidity,v=>setOw(p=>({...p,liquidity:v}))],["Asymmetry",ow.asymmetry,v=>setOw(p=>({...p,asymmetry:v}))]].map(([l,v,fn])=>React.createElement("div",{key:l,style:{display:"flex",alignItems:"center",gap:10,padding:"4px 0"}},React.createElement("span",{style:{fontSize:11,color:C.textSec,minWidth:75,fontWeight:500}},l),React.createElement("input",{type:"range",min:0,max:40,step:1,value:v,onChange:e=>fn(parseInt(e.target.value)),style:{flex:1}}),React.createElement("span",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:C.blue,minWidth:24,textAlign:"right"}},v))),
+        React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,paddingTop:10,borderTop:"1px solid "+C.border}},
+          React.createElement("span",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:wt===100?C.green:wt>100?C.red:C.amber}},"Total: "+wt+"/100"),
+          React.createElement("div",{style:{display:"flex",gap:6}},
+            React.createElement("button",{onClick:()=>setOw({earnings_catalyst:25,iv_context:20,directional:20,technical:15,liquidity:10,asymmetry:10}),style:{padding:"5px 10px",borderRadius:6,border:"1px solid "+C.border,background:C.bgCard,color:C.textSec,fontSize:10,fontWeight:600,cursor:"pointer"}},"Reset"),
+            React.createElement("button",{onClick:()=>api("/weights",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opt:ow})}),style:{padding:"5px 10px",borderRadius:6,border:"1px solid "+C.blue+"40",background:C.blueBg,color:C.blue,fontSize:10,fontWeight:600,cursor:"pointer"}},"Apply")))),
+      React.createElement(Card,{style:{padding:12,maxHeight:showW?"40vh":"65vh",overflowY:"auto"}},
+        React.createElement("div",{style:{fontSize:11,color:C.textSec,fontWeight:600,textTransform:"uppercase",letterSpacing:".04em",padding:"4px 8px",marginBottom:4}},"By Opt Score"),
+        opts.map(r=>React.createElement("div",{key:r.ticker,onClick:()=>loadPlays(r.ticker),style:{display:"grid",gridTemplateColumns:"54px 1fr 40px",alignItems:"center",gap:6,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:sel===r.ticker?C.blueBg:"transparent",borderLeft:sel===r.ticker?"3px solid "+C.blue:"3px solid transparent"}},React.createElement("span",{style:{fontSize:13,fontWeight:700,fontFamily:mono}},r.ticker),React.createElement("span",{style:{fontSize:11,color:C.textSec,fontFamily:mono}},"$"+r.price),React.createElement(Badge,{color:r.opt_score>=40?C.green:r.opt_score>=25?C.amber:C.textTri},r.opt_score))))),
+    React.createElement("div",{style:{flex:1}},detail));}
+
+// ─── Backtest ───
+function BacktestTab({backtest:init,tz}){
+  const [period,setPeriod]=useState(30),[data,setData]=useState(init),[loading,setLoading]=useState(false);
+  const [wtHist,setWtHist]=useState(null),[calRunning,setCalRunning]=useState(false),[calMsg,setCalMsg]=useState("");
+  const [inverseOpen,setInverseOpen]=useState(false),[inversePlays,setInversePlays]=useState(null),[invLoading,setInvLoading]=useState(false);
+  const loadBT=useCallback(async fwd=>{setLoading(true);const d=await api("/backtest?days=180&forward_period="+fwd);if(d)setData(d);setLoading(false)},[]);
+  const loadWH=useCallback(async()=>{const d=await api("/weights/history?limit=30");if(d)setWtHist(d)},[]);
+  useEffect(()=>{if(!data)loadBT(period);loadWH()},[]);
+  const runCalibrate=async()=>{setCalRunning(true);setCalMsg("Calibrating weights…");const d=await api("/calibrate",{method:"POST"});setCalRunning(false);if(d&&d.status==="calibrated"){setCalMsg("✓ Weights updated");loadWH()}else setCalMsg(d?.message||"Insufficient data")};
+
+  if(loading)return React.createElement("div",{style:{color:C.textSec,padding:40,textAlign:"center"}},"Running backtest…");
+  if(!data)return React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{style:{fontSize:36,marginBottom:12}},"📊"),React.createElement("div",{style:{fontSize:15,fontWeight:600}},"Loading backtest…"));
+
+  const sd=data.score_vs_returns||{},ld=data.layer_attribution||{},ed=data.earnings_timing||{};
+  const ltA=sd.lt_analysis||{},optA=sd.opt_analysis||{};
+  const ltCorr=ltA.correlation,optCorr=optA.correlation;
+  const qs=ltA.quintile_spread;
+  const obs=ltA.data_points||0;
+
+  // Model health badge
+  const modelHealth=(ltCorr>0.15&&qs>2)?"Strong":(ltCorr>0.05||qs>1)?"Moderate":"Weak";
+  const modelCol=modelHealth==="Strong"?C.green:modelHealth==="Moderate"?C.amber:C.red;
+
+  const qc=[];if(ltA.status==="ok"&&ltA.quintiles)Object.entries(ltA.quintiles).forEach(([l,s])=>{qc.push({name:l,"return":s.avg_return,winRate:s.win_rate,count:s.count})});
+  const q1ret=qc.find(q=>q.name==="Q1")?.return||0,q5ret=qc.find(q=>q.name==="Q5")?.return||0;
+  const spread=q5ret-q1ret;
+
+  const compLabels={lt_rule_of_40:"Rule of 40",lt_valuation:"Valuation",lt_fcf_margin:"FCF Margin",lt_trend:"Trend",lt_earnings_quality:"Earn. Quality",lt_discount_momentum:"Disc. Mom."};
+  const lc=[];if(ld.lt_component_attribution)Object.entries(ld.lt_component_attribution).forEach(([k,v])=>{if(v.correlation!=null)lc.push({name:compLabels[k]||k,alpha:v.correlation,alpha_pct:v.correlation*100})});
+  lc.sort((a,b)=>b.alpha-a.alpha);
+
+  const ec=[];if(ed.forward_14d&&ed.forward_30d)Object.entries(ed.forward_14d).forEach(([label,v14])=>{const v30=ed.forward_30d[label]||{};if((v14.count||0)>0||(v30.count||0)>0)ec.push({name:label,return14d:v14.avg_return||0,return30d:v30.avg_return||0,count:v14.count||0})});
+  const bestWindow=ec.length>0?ec.reduce((a,b)=>a.return14d>b.return14d?a:b).name:"—";
+
+  // Weight history helpers
+  const WH=wtHist?.history||[];
+  const ltHist=WH.filter(w=>w.score_type==="lt").slice(0,10);
+  const ltKeys=["rule_of_40","valuation","fcf_margin","trend","earnings_quality","discount_momentum"];
+  const ltLabels={rule_of_40:"Rule of 40",valuation:"Valuation",fcf_margin:"FCF Margin",trend:"Trend",earnings_quality:"Earn. Quality",discount_momentum:"Disc. Mom."};
+
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:20}},
+
+    // ── Model health header ──
+    React.createElement(Card,{style:{padding:20}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:16}},
+        React.createElement("div",null,
+          React.createElement("h2",{style:{fontSize:17,fontWeight:700,margin:0}},"Model Health"),
+          React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:"4px 0 0"}},"180-day lookback · "+obs+" score/return observations")),
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+          React.createElement("span",{style:{fontSize:13,fontWeight:700,padding:"6px 14px",borderRadius:8,background:modelCol+"18",color:modelCol,border:"1px solid "+modelCol+"40"}},modelHealth+" Signal"),
+          React.createElement("button",{onClick:runCalibrate,disabled:calRunning,style:{padding:"8px 16px",borderRadius:8,fontSize:12,fontWeight:600,cursor:calRunning?"wait":"pointer",background:C.blueBg,color:C.blue,border:"1px solid "+C.blueBorder}},calRunning?"Calibrating…":"⚙ Auto-Calibrate"),
+          calMsg&&React.createElement("span",{style:{fontSize:11,color:C.textSec}},calMsg))),
+      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}},
+        React.createElement(Metric,{label:"LT Score Correlation",value:ltCorr!=null?ltCorr.toFixed(3):"—",color:ltCorr!=null?(ltCorr>0.15?C.green:ltCorr>0.05?C.amber:C.red):C.textSec,sub:ltCorr!=null?(ltCorr>0.15?"Strong predictive power":ltCorr>0.05?"Moderate signal":"Weak / no signal"):"No data yet"}),
+        React.createElement(Metric,{label:"Q5 − Q1 Spread",value:spread!=null?spread.toFixed(1)+"%":"—",color:spread>3?C.green:spread>1?C.amber:C.red,sub:spread>3?"Top scores beat bottom by >3%":spread>1?"Moderate separation":"Scores not yet discriminating"}),
+        React.createElement(Metric,{label:"Opt Score Correlation",value:optCorr!=null?optCorr.toFixed(3):"—",color:optCorr!=null?(optCorr>0.1?C.green:optCorr<-0.05?C.red:C.amber):C.textSec,sub:"Options score vs "+period+"d return"}),
+        React.createElement(Metric,{label:"Best Entry Window",value:bestWindow,color:C.blue,sub:"Days-to-earnings timing"}))),
+
+    // ── Forward period selector ──
+    React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+      React.createElement("span",{style:{fontSize:12,color:C.textSec,fontWeight:600}},"Forward return window:"),
+      [14,30,60].map(p=>React.createElement("button",{key:p,onClick:()=>{setPeriod(p);loadBT(p)},style:{padding:"7px 16px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:mono,background:period===p?C.blueBg:C.bgCard,border:"1px solid "+(period===p?C.blue+"40":C.border),color:period===p?C.blue:C.textSec}},p+"d")),
+      React.createElement("span",{style:{fontSize:11,color:C.textTri,marginLeft:"auto",fontFamily:mono}},obs+" observations")),
+
+    // ── Quintile chart ──
+    qc.length>0&&React.createElement(Card,{style:{padding:20}},
+      React.createElement("div",{style:{marginBottom:14}},
+        React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Score Quintile → "+period+"d Return"),
+        React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0,lineHeight:1.6}},"Tickers ranked by LT Score and split into 5 equal buckets (Q1=lowest 20%, Q5=highest 20%). Their actual "+period+"-day stock returns are averaged per bucket. ",React.createElement("strong",null,"A working model shows Q5 outperforming Q1.")," A flat or inverted chart means scores aren't yet predictive — run Auto-Calibrate to reweight.")),
+      React.createElement(SvgBarChart,{data:qc,dataKey:"return",labelKey:"name",height:240,colorFn:(d,v)=>v>=0?C.green:C.red}),
+      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginTop:12}},
+        qc.map(d=>React.createElement("div",{key:d.name,style:{padding:"8px 10px",background:C.bg,borderRadius:8,border:"1px solid "+C.border,textAlign:"center"}},
+          React.createElement("div",{style:{fontSize:11,fontWeight:700,fontFamily:mono,color:d.return>=0?C.green:C.red}},(d.return>=0?"+":"")+d.return.toFixed(1)+"%"),
+          React.createElement("div",{style:{fontSize:10,color:C.textSec,marginTop:2}},d.name+" · n="+d.count),
+          React.createElement("div",{style:{fontSize:10,color:C.textTri}},(d.winRate||0).toFixed(0)+"% winners"))))),
+
+    // ── Inverse Plan banner + section ──
+    ltCorr!=null&&React.createElement("div",null,
+      React.createElement(Card,{style:{padding:16,background:ltCorr<-0.05?"#fffbeb":"#f0fdf4",border:"1px solid "+(ltCorr<-0.05?"#fcd34d":C.greenBorder)}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
+          React.createElement("div",null,
+            ltCorr<-0.05
+              ?React.createElement("div",null,React.createElement("span",{style:{fontSize:14,fontWeight:700,color:"#92400e"}},"⚠️ Model Inversion Detected  "),React.createElement("span",{style:{fontSize:12,color:"#78350f"}},"LT correlation is "+ltCorr.toFixed(3)+" — high-scored tickers are historically underperforming. The model's picks are anti-predictive."))
+              :React.createElement("div",null,React.createElement("span",{style:{fontSize:14,fontWeight:700,color:C.green}},"✓ Model is Normally Correlated  "),React.createElement("span",{style:{fontSize:12,color:C.textSec}},"LT correlation: "+ltCorr.toFixed(3)+". Inverse mode is available as a research tool even when the model is working."))),
+          React.createElement("button",{
+            onClick:async()=>{
+              const opening=!inverseOpen;
+              setInverseOpen(opening);
+              if(opening&&!inversePlays){setInvLoading(true);const d=await api("/inverse-plays?limit=8");setInversePlays(d);setInvLoading(false)}},
+            style:{padding:"8px 16px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",background:ltCorr<-0.05?"#fef3c7":"#f0fdf4",color:ltCorr<-0.05?"#92400e":C.green,border:"1px solid "+(ltCorr<-0.05?"#fcd34d":C.greenBorder)}},
+            inverseOpen?"▲ Hide Anti-Augur":"🔄 Inverse the Plan"))),
+      inverseOpen&&React.createElement(Card,{style:{padding:20,marginTop:12,border:"2px dashed "+(ltCorr<-0.05?"#fcd34d":"#bbf7d0")}},
+        React.createElement("div",{style:{marginBottom:14}},
+          React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px",color:ltCorr<-0.05?"#92400e":C.text}},"🃏 Anti-Augur: Contrarian Plays"),
+          React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:"0 0 10px",lineHeight:1.6}},
+            "These are the tickers Augur scores ",React.createElement("em",null,"lowest")," in the current universe. ",
+            ltCorr<-0.05?"When the model is inverted, these low-confidence tickers have historically been the actual outperformers. The existential test: ":"Shown as a research overlay. If the model ever inverts, these become the preferred basket. ",
+            inversePlays?.q1_avg_return!=null&&React.createElement("strong",{style:{color:ltCorr<-0.05?C.green:C.textSec}}," Q1 (lowest-scored) avg return: "+(inversePlays.q1_avg_return>=0?"+":"")+inversePlays.q1_avg_return.toFixed(1)+"% · Win rate: "+(inversePlays.q1_win_rate||0).toFixed(0)+"%.")),
+          inversePlays?.is_inverted&&React.createElement("div",{style:{padding:"8px 12px",background:"#fef3c7",borderRadius:8,border:"1px solid #fcd34d",fontSize:12,color:"#92400e",marginBottom:10}},inversePlays.interpretation)),
+        invLoading&&React.createElement("div",{style:{color:C.textSec,fontSize:12,padding:"12px 0"}},"Loading contrarian plays…"),
+        !invLoading&&inversePlays&&inversePlays.plays&&React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}},
+          inversePlays.plays.map(p=>React.createElement("div",{key:p.ticker,style:{padding:"12px 14px",background:C.bg,borderRadius:10,border:"1px solid "+C.border}},
+            React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
+              React.createElement("span",{style:{fontSize:14,fontWeight:800,fontFamily:mono}},p.ticker),
+              React.createElement("span",{style:{fontSize:11,color:C.textSec}},"$"+(p.price||"—"))),
+            React.createElement("div",{style:{display:"flex",gap:8,marginBottom:6}},
+              React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{fontSize:9,color:C.textTri,marginBottom:2}},"LT"),React.createElement("div",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:C.red}},(p.lt_score||0).toFixed(0))),
+              React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{fontSize:9,color:C.textTri,marginBottom:2}},"OPT"),React.createElement("div",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:C.amber}},(p.opt_score||0).toFixed(0))),
+              React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{fontSize:9,color:C.textTri,marginBottom:2}},"COMBINED"),React.createElement("div",{style:{fontSize:12,fontWeight:700,fontFamily:mono}},(p.combined_score||0).toFixed(0)))),
+            React.createElement("div",{style:{fontSize:10,color:C.textSec,lineHeight:1.4}},p.inverse_reason||"Low conviction score")))))),
+
+    // ── Layer alpha ──
+    lc.length>0&&React.createElement(Card,{style:{padding:20}},
+      React.createElement("div",{style:{marginBottom:14}},
+        React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Component Predictive Power"),
+        React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0,lineHeight:1.6}},"Pearson correlation between each score component and "+period+"-day forward returns. ",React.createElement("strong",null,"Positive = component predicts gains; negative = contrarian or noisy.")," Components with high correlation should have higher weights — use Auto-Calibrate to apply.")),
+      React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+        lc.map(item=>{
+          const pct=Math.abs(item.alpha)*100,maxBar=200,barW=Math.min(100,pct*maxBar);
+          const col=item.alpha>0.05?C.green:item.alpha<-0.02?C.red:C.textSec;
+          return React.createElement("div",{key:item.name,style:{display:"grid",gridTemplateColumns:"140px 1fr 70px",alignItems:"center",gap:10}},
+            React.createElement("span",{style:{fontSize:12,fontWeight:600,color:C.text}},item.name),
+            React.createElement("div",{style:{height:8,background:C.border,borderRadius:4,overflow:"hidden"}},
+              React.createElement("div",{style:{height:"100%",width:barW+"%",background:col,borderRadius:4,transition:"width .4s"}})),
+            React.createElement("span",{style:{fontSize:12,fontFamily:mono,fontWeight:700,color:col,textAlign:"right"}},(item.alpha>=0?"+":"")+item.alpha.toFixed(3)))})),
+      React.createElement("p",{style:{fontSize:11,color:C.textTri,marginTop:12}},"Interpretation: >+0.10 = strong positive signal · -0.02 to +0.10 = neutral · <-0.02 = noisy or contrarian")),
+
+    // ── Earnings timing ──
+    ec.length>0&&React.createElement(Card,{style:{padding:20}},
+      React.createElement("div",{style:{marginBottom:14}},
+        React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Earnings Entry Timing"),
+        React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0,lineHeight:1.6}},"Average returns when entering a position at different distances from earnings. ",React.createElement("strong",null,"Best window: "+bestWindow+".")," This tells you the optimal time to open options plays relative to the catalyst.")),
+      React.createElement(SvgGroupedBarChart,{data:ec,bars:[{key:"return14d",name:"14d Return",color:C.blue},{key:"return30d",name:"30d Return",color:C.purple}],labelKey:"name",height:200}),
+      React.createElement("div",{style:{display:"flex",gap:16,marginTop:10,flexWrap:"wrap"}},
+        ec.map(d=>React.createElement("div",{key:d.name,style:{padding:"6px 10px",background:C.bg,borderRadius:6,border:"1px solid "+C.border,fontSize:11}},
+          React.createElement("div",{style:{fontWeight:700,marginBottom:2}},d.name),
+          React.createElement("div",{style:{color:C.blue,fontFamily:mono}},"14d: "+(d.return14d>=0?"+":"")+d.return14d.toFixed(1)+"%"),
+          React.createElement("div",{style:{color:C.purple,fontFamily:mono}},"30d: "+(d.return30d>=0?"+":"")+d.return30d.toFixed(1)+"%"),
+          React.createElement("div",{style:{color:C.textTri,marginTop:2}},"n="+d.count))))),
+
+    // ── Weight calibration log ──
+    React.createElement(Card,{style:{padding:20}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}},
+        React.createElement("div",null,
+          React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Weight Calibration Log"),
+          React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0}},"History of all LT score weight adjustments made by Auto-Calibrate")),
+        React.createElement("button",{onClick:loadWH,style:{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:C.bg,color:C.textSec,border:"1px solid "+C.border}},"↻ Refresh")),
+      ltHist.length===0&&React.createElement("div",{style:{padding:"20px 0",textAlign:"center",color:C.textSec,fontSize:13}},"No calibrations yet. Click Auto-Calibrate above to run the first one."),
+      ltHist.length>0&&React.createElement("div",{style:{overflowX:"auto"}},
+        React.createElement("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+          React.createElement("thead",null,
+            React.createElement("tr",{style:{borderBottom:"2px solid "+C.border}},
+              React.createElement("th",{style:{padding:"6px 8px",textAlign:"left",color:C.textSec,fontWeight:600}},"Date"),
+              React.createElement("th",{style:{padding:"6px 8px",textAlign:"right",color:C.textSec,fontWeight:600}},"Corr"),
+              React.createElement("th",{style:{padding:"6px 8px",textAlign:"right",color:C.textSec,fontWeight:600}},"Q-Spread"),
+              ltKeys.map(k=>React.createElement("th",{key:k,style:{padding:"6px 8px",textAlign:"right",color:C.textSec,fontWeight:600,fontSize:10}},ltLabels[k]||k)))),
+          React.createElement("tbody",null,
+            ltHist.map((row,i)=>{
+              const prev=ltHist[i+1];
+              const w=row.weights||{},pw=prev?.weights||{};
+              return React.createElement("tr",{key:row.id,style:{borderBottom:"1px solid "+C.border,background:i%2===0?C.bg:"transparent"}},
+                React.createElement("td",{style:{padding:"6px 8px",color:C.textSec,whiteSpace:"nowrap"}},fmtCalRow(row.timestamp,tz)),
+                React.createElement("td",{style:{padding:"6px 8px",textAlign:"right",fontFamily:mono,color:row.backtest_correlation!=null?(row.backtest_correlation>0.1?C.green:row.backtest_correlation<0?C.red:C.amber):C.textSec}},row.backtest_correlation!=null?row.backtest_correlation.toFixed(3):"—"),
+                React.createElement("td",{style:{padding:"6px 8px",textAlign:"right",fontFamily:mono,color:row.backtest_quintile_spread!=null?(row.backtest_quintile_spread>2?C.green:C.amber):C.textSec}},row.backtest_quintile_spread!=null?row.backtest_quintile_spread.toFixed(1)+"%":"—"),
+                ltKeys.map(k=>{
+                  const cur=w[k],prv=pw[k];
+                  const delta=cur!=null&&prv!=null?cur-prv:null;
+                  return React.createElement("td",{key:k,style:{padding:"6px 8px",textAlign:"right",fontFamily:mono}},
+                    cur!=null?React.createElement("span",null,
+                      cur,
+                      delta!=null&&delta!==0&&React.createElement("span",{style:{fontSize:10,color:delta>0?C.green:C.red,marginLeft:3}},(delta>0?"+":"")+delta)):
+                    "—")}))}))))),
+
+    // ── No data fallback ──
+    qc.length===0&&lc.length===0&&React.createElement(Card,{style:{padding:40,textAlign:"center"}},
+      React.createElement("div",{style:{fontSize:36,marginBottom:12}},"📊"),
+      React.createElement("div",{style:{fontSize:15,fontWeight:600,marginBottom:6}},"Not enough data yet"),
+      React.createElement("div",{style:{fontSize:12,color:C.textSec,maxWidth:400,margin:"0 auto",lineHeight:1.7}},"The backtest engine needs scores from multiple days to measure predictive power. Scans run automatically every 30 minutes during market hours. Come back tomorrow to see your first correlation data.")));}
+
+// ─── Watchlist Tab ───
+function WatchlistTab(){
+  const [items,setItems]=useState(null),[input,setInput]=useState(""),[notes,setNotes]=useState(""),[sector,setSector]=useState("unknown"),[saving,setSaving]=useState(false),[msg,setMsg]=useState("");
+  const load=useCallback(()=>{api("/watchlist").then(d=>{if(d)setItems(d.items||[])})},[]);
+  useEffect(()=>{load()},[]);
+  const addTicker=async()=>{
+    const t=input.trim().toUpperCase();if(!t)return;
+    setSaving(true);setMsg("");
+    const r=await api("/watchlist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ticker:t,notes,sector})});
+    setSaving(false);
+    if(r){setMsg(r.message||r.status||"Done");setInput("");setNotes("");load()}else setMsg("Failed to add ticker")
+  };
+  const removeTicker=async t=>{await api("/watchlist/"+t,{method:"DELETE"});load()};
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:20}},
+    React.createElement(Card,{style:{padding:20}},
+      React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:4}},"📌 Custom Watchlist"),
+      React.createElement("p",{style:{fontSize:12,color:C.textSec,marginBottom:16,lineHeight:1.6}},"Track any ticker — even those outside the standard universe. Watchlist tickers are automatically included in the next scan, news feed, and scoring pipeline."),
+      React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}},
+        React.createElement("div",{style:{flex:"0 0 120px"}},
+          React.createElement("label",{style:{fontSize:10,fontWeight:600,color:C.textSec,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".04em"}},"Ticker"),
+          React.createElement("input",{value:input,onChange:e=>setInput(e.target.value.toUpperCase()),placeholder:"e.g. VZ",maxLength:10,onKeyDown:e=>e.key==="Enter"&&addTicker(),style:{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid "+C.border,fontSize:13,fontFamily:mono,fontWeight:700,background:C.bgCard,color:C.text}})),
+        React.createElement("div",{style:{flex:"0 0 100px"}},
+          React.createElement("label",{style:{fontSize:10,fontWeight:600,color:C.textSec,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".04em"}},"Sector"),
+          React.createElement("select",{value:sector,onChange:e=>setSector(e.target.value),style:{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,background:C.bgCard,color:C.text}},
+            ["unknown","cyber","energy","defense","tech","finance","health"].map(s=>React.createElement("option",{key:s,value:s},s.charAt(0).toUpperCase()+s.slice(1))))),
+        React.createElement("div",{style:{flex:1,minWidth:140}},
+          React.createElement("label",{style:{fontSize:10,fontWeight:600,color:C.textSec,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".04em"}},"Notes (optional)"),
+          React.createElement("input",{value:notes,onChange:e=>setNotes(e.target.value),placeholder:"Why tracking this...",style:{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,background:C.bgCard,color:C.text}})),
+        React.createElement("button",{onClick:addTicker,disabled:saving||!input.trim(),style:{padding:"8px 18px",borderRadius:8,fontSize:13,fontWeight:600,cursor:saving||!input.trim()?"not-allowed":"pointer",background:C.blue,color:"#fff",border:"none",opacity:saving||!input.trim()?.6:1}},saving?"Adding...":"+ Add")),
+      msg&&React.createElement("div",{style:{marginTop:8,fontSize:12,color:msg.includes("already")||msg.includes("Failed")?C.amber:C.green}},msg)),
+    items===null&&React.createElement(Card,{style:{padding:32,textAlign:"center"}},React.createElement("div",{className:"pulse",style:{color:C.textSec,fontSize:13}},"Loading watchlist...")),
+    items!==null&&items.length===0&&React.createElement(Card,{style:{padding:32,textAlign:"center"}},
+      React.createElement("div",{style:{fontSize:28,marginBottom:10}},"📌"),
+      React.createElement("div",{style:{fontSize:14,fontWeight:600,marginBottom:6}},"Your watchlist is empty"),
+      React.createElement("div",{style:{fontSize:12,color:C.textSec,maxWidth:400,margin:"0 auto",lineHeight:1.6}},"Add tickers above to track any stock. They'll be included in the next scan and scored alongside the standard universe.")),
+    items!==null&&items.length>0&&React.createElement(Card,{style:{padding:0,overflow:"hidden"}},
+      React.createElement("div",{style:{padding:"14px 20px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between"}},
+        React.createElement("span",{style:{fontSize:13,fontWeight:700}},"Tracked Tickers"),
+        React.createElement("span",{style:{fontSize:11,color:C.textSec}},items.length+" ticker"+(items.length!==1?"s":"")+" tracked")),
+      items.map((item,i)=>{
+        const hasS=item.has_scores;
+        const ltC=item.lt_score>=60?C.green:item.lt_score>=35?C.amber:C.red;
+        const optC=item.opt_score>=40?C.green:item.opt_score>=25?C.amber:C.red;
+        return React.createElement("div",{key:item.ticker,style:{display:"grid",gridTemplateColumns:"60px 80px 1fr 90px 90px 80px 48px",alignItems:"center",gap:10,padding:"12px 20px",borderBottom:i<items.length-1?"1px solid "+C.border:"none",background:i%2===0?"#fbfbfd":C.bgCard}},
+          React.createElement("span",{style:{fontSize:14,fontWeight:800,fontFamily:mono,color:C.text}},item.ticker),
+          React.createElement("span",{style:{fontSize:11,fontFamily:mono,color:C.textSec}},item.price?"$"+item.price:"No scan yet"),
+          React.createElement("div",null,
+            React.createElement("span",{style:{fontSize:11,color:C.textSec,display:"block"}},item.sector!=="unknown"?item.sector.charAt(0).toUpperCase()+item.sector.slice(1):""),
+            item.notes&&React.createElement("span",{style:{fontSize:10,color:C.textTri}},item.notes)),
+          hasS?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},React.createElement("span",{style:{fontSize:10,color:C.textSec,marginRight:2}},"LT"),React.createElement(ScoreBar,{score:item.lt_score})):React.createElement("span",{style:{fontSize:10,color:C.textTri}},"Pending scan"),
+          hasS?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},React.createElement("span",{style:{fontSize:10,color:C.textSec,marginRight:2}},"Opt"),React.createElement(ScoreBar,{score:item.opt_score})):null,
+          hasS&&item.outage_status==="outage"?React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:5,background:C.redBg,color:C.red,border:"1px solid "+C.redBorder}},"🔴 OUTAGE"):
+          hasS&&item.outage_status==="degraded"?React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:5,background:"#fff8e1",color:C.amber,border:"1px solid #ffe082"}},"⚠ DEGRADED"):
+          React.createElement("span",null),
+          React.createElement("button",{onClick:()=>removeTicker(item.ticker),style:{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.redBorder,background:C.redBg,color:C.red,fontSize:10,fontWeight:600,cursor:"pointer"}},"✕"))})
+    ));}
+
+// ─── Intel Tab ───
+function IntelTab({tz}){
+  const [news,setNews]=useState(null);
+  const [outages,setOutages]=useState(null);
+  const [newsLoading,setNewsLoading]=useState(true);
+  const [outLoading,setOutLoading]=useState(true);
+  useEffect(()=>{
+    api("/intel/news").then(d=>{if(d)setNews(d);setNewsLoading(false)});
+    api("/intel/outages").then(d=>{if(Array.isArray(d))setOutages(d);setOutLoading(false)});
+  },[]);
+
+  const tagColors={breach:"#fff0f0",ransomware:"#fff0f0",hack:"#fff0f0",exploit:"#fff8e1","zero-day":"#fff0f0",vulnerability:"#fff8e1",attack:"#fff0f0",phishing:"#fff8e1",malware:"#fff0f0",outage:"#f3e8ff",leak:"#fff0f0",credential:"#fff8e1"};
+  const tagTxtColors={breach:C.red,ransomware:C.red,hack:C.red,exploit:C.amber,"zero-day":C.red,vulnerability:C.amber,attack:C.red,phishing:C.amber,malware:C.red,outage:C.purple,leak:C.red,credential:C.amber};
+
+  const statusCol={operational:C.green,degraded:C.amber,outage:C.red,unknown:C.textSec};
+  const statusBg={operational:C.greenBg,degraded:"#fff8e1",outage:C.redBg,unknown:C.bgCard};
+  const statusBrd={operational:C.greenBorder,degraded:"#ffe082",outage:C.redBorder,unknown:C.border};
+  const statusIcon={operational:"✓",degraded:"⚠",outage:"✕",unknown:"?"};
+
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",gap:20,alignItems:"flex-start"}},
+    // ── News panel (55%) ──
+    React.createElement("div",{style:{flex:"0 0 55%",display:"flex",flexDirection:"column",gap:16}},
+      React.createElement(Card,{style:{padding:20}},
+        React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}},
+          React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:0}},"🛡 Cyber Threat Feed"),
+          news&&React.createElement("span",{style:{fontSize:11,color:C.textSec}},fmtTimeOnly(news.fetched_at,tz))),
+        newsLoading&&React.createElement("div",{style:{color:C.textSec,fontSize:13,padding:"20px 0",textAlign:"center"}},"Fetching feeds..."),
+        !newsLoading&&(!news||!news.items||news.items.length===0)&&React.createElement("div",{style:{color:C.textSec,fontSize:13,textAlign:"center",padding:"20px 0"}},"No articles fetched. Check RSS sources."),
+        !newsLoading&&news&&news.items&&news.items.map((item,i)=>React.createElement("div",{key:i,style:{borderTop:i>0?"1px solid "+C.border:"none",paddingTop:i>0?12:0,marginTop:i>0?4:0}},
+          React.createElement("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:4}},
+            React.createElement("a",{href:item.link,target:"_blank",rel:"noopener",style:{fontSize:13,fontWeight:600,color:C.blue,textDecoration:"none",lineHeight:1.4,flex:1}},item.title||"(no title)"),
+            React.createElement("span",{style:{fontSize:10,color:C.textTri,whiteSpace:"nowrap",marginTop:2}},item.source)),
+          item.summary&&React.createElement("div",{style:{fontSize:11,color:C.textSec,lineHeight:1.5,marginBottom:5}},item.summary.slice(0,160)+(item.summary.length>160?"…":"")),
+          React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}},
+            item.tags&&item.tags.slice(0,4).map(t=>React.createElement("span",{key:t,style:{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:5,background:tagColors[t]||"#f5f5f5",color:tagTxtColors[t]||C.textSec,border:"1px solid "+(tagTxtColors[t]||C.textSec)+"30"}},t)),
+            item.ticker_mentions&&item.ticker_mentions.length>0&&item.ticker_mentions.slice(0,5).map(tk=>React.createElement("span",{key:tk,style:{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:5,background:C.blueBg,color:C.blue,border:"1px solid "+C.blueBorder,fontFamily:mono}},tk))))))),
+    // ── Outages panel (45%) ──
+    React.createElement("div",{style:{flex:"0 0 calc(45% - 20px)",display:"flex",flexDirection:"column",gap:16}},
+      React.createElement(Card,{style:{padding:20}},
+        React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:14}},"🔴 Service Status"),
+        outLoading&&React.createElement("div",{style:{color:C.textSec,fontSize:13,padding:"20px 0",textAlign:"center"}},"Checking status pages..."),
+        !outLoading&&outages&&outages.map(svc=>React.createElement("div",{key:svc.ticker,style:{padding:"10px 12px",background:statusBg[svc.status]||C.bgCard,border:"1px solid "+(statusBrd[svc.status]||C.border),borderRadius:10,marginBottom:8,display:"flex",alignItems:"center",gap:10}},
+          React.createElement("span",{style:{fontFamily:mono,fontSize:11,fontWeight:700,color:C.textSec,minWidth:36}},svc.ticker),
+          React.createElement("span",{style:{flex:1,fontSize:13,fontWeight:600,color:C.text}},svc.name),
+          svc.components_affected&&svc.components_affected.length>0&&React.createElement("span",{style:{fontSize:10,color:C.red,flex:1}},svc.components_affected.slice(0,2).join(", ")+(svc.components_affected.length>2?" +"+( svc.components_affected.length-2)+" more":"")),
+          React.createElement("span",{style:{fontSize:12,fontWeight:700,color:statusCol[svc.status]||C.textSec,display:"flex",alignItems:"center",gap:4}},
+            React.createElement("span",{style:{fontSize:14}},statusIcon[svc.status]||"?"),
+            svc.status||"unknown")))
+      )));}
+
+// ─── Research Tab (merged: Backtest + Watchlist + Intel) ───
+function ResearchTab({backtest:initBacktest,tz}){
+  const [subTab,setSubTab]=useState("backtest");
+
+  // ── Backtest state ──
+  const [period,setPeriod]=useState(30),[btData,setBtData]=useState(initBacktest),[btLoading,setBtLoading]=useState(false);
+  const [wtHist,setWtHist]=useState(null),[calRunning,setCalRunning]=useState(false),[calMsg,setCalMsg]=useState("");
+  const [inverseOpen,setInverseOpen]=useState(false),[inversePlays,setInversePlays]=useState(null),[invLoading,setInvLoading]=useState(false);
+  const loadBT=useCallback(async fwd=>{setBtLoading(true);const d=await api("/backtest?days=180&forward_period="+fwd);if(d)setBtData(d);setBtLoading(false)},[]);
+  const loadWH=useCallback(async()=>{const d=await api("/weights/history?limit=30");if(d)setWtHist(d)},[]);
+  useEffect(()=>{if(!btData)loadBT(period);loadWH()},[]);
+  const runCalibrate=async()=>{setCalRunning(true);setCalMsg("Calibrating weights…");const d=await api("/calibrate",{method:"POST"});setCalRunning(false);if(d&&d.status==="calibrated"){setCalMsg("✓ Weights updated");loadWH()}else setCalMsg(d?.message||"Insufficient data")};
+
+  // ── Watchlist state ──
+  const [wlItems,setWlItems]=useState(null),[wlInput,setWlInput]=useState(""),[wlNotes,setWlNotes]=useState(""),[wlSector,setWlSector]=useState("unknown"),[wlSaving,setWlSaving]=useState(false),[wlMsg,setWlMsg]=useState("");
+  const wlPollRef=useRef(null),[wlPollTicker,setWlPollTicker]=useState(null);
+  const loadWl=useCallback(()=>{api("/watchlist").then(d=>{if(d)setWlItems(d.items||[])})},[]);
+  useEffect(()=>{loadWl()},[]);
+  function stopWlPoll(){if(wlPollRef.current){clearInterval(wlPollRef.current);wlPollRef.current=null}setWlPollTicker(null)}
+  function startWlPoll(ticker){
+    setWlMsg("⏳ Scanning "+ticker+"…");setWlPollTicker(ticker);
+    let elapsed=0;
+    wlPollRef.current=setInterval(async()=>{
+      elapsed+=4000;
+      const d=await api("/watchlist");
+      if(d){setWlItems(d.items||[]);const allScored=(d.items||[]).every(it=>it.has_scores);if(allScored||elapsed>=20000){stopWlPoll();if(allScored)setWlMsg("✓ Scores updated");else setWlMsg("Done — scan in progress")}}
+      if(elapsed>=20000)stopWlPoll()
+    },4000)
+  }
+  useEffect(()=>()=>stopWlPoll(),[]);
+  const addTicker=async()=>{
+    const t=wlInput.trim().toUpperCase();if(!t)return;
+    setWlSaving(true);setWlMsg("");
+    const r=await api("/watchlist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ticker:t,notes:wlNotes,sector:wlSector})});
+    setWlSaving(false);
+    if(r){setWlInput("");setWlNotes("");loadWl();startWlPoll(t)}else setWlMsg("Failed to add ticker")
+  };
+  const removeTicker=async t=>{await api("/watchlist/"+t,{method:"DELETE"});loadWl()};
+
+  // ── Intel state ──
+  const [news,setNews]=useState(null),[outages,setOutages]=useState(null),[newsLoading,setNewsLoading]=useState(true),[outLoading,setOutLoading]=useState(true);
+  useEffect(()=>{if(subTab==="intel"&&!news){api("/intel/news").then(d=>{if(d)setNews(d);setNewsLoading(false)});api("/intel/outages").then(d=>{if(Array.isArray(d))setOutages(d);setOutLoading(false)})}},[subTab]);
+  const tagColors={breach:"#fff0f0",ransomware:"#fff0f0",hack:"#fff0f0",exploit:"#fff8e1","zero-day":"#fff0f0",vulnerability:"#fff8e1",attack:"#fff0f0",phishing:"#fff8e1",malware:"#fff0f0",outage:"#f3e8ff",leak:"#fff0f0",credential:"#fff8e1"};
+  const tagTxtColors={breach:C.red,ransomware:C.red,hack:C.red,exploit:C.amber,"zero-day":C.red,vulnerability:C.amber,attack:C.red,phishing:C.amber,malware:C.red,outage:C.purple,leak:C.red,credential:C.amber};
+  const statusCol={operational:C.green,degraded:C.amber,outage:C.red,unknown:C.textSec};
+  const statusBg={operational:C.greenBg,degraded:"#fff8e1",outage:C.redBg,unknown:C.bgCard};
+  const statusBrd={operational:C.greenBorder,degraded:"#ffe082",outage:C.redBorder,unknown:C.border};
+  const statusIcon={operational:"✓",degraded:"⚠",outage:"✕",unknown:"?"};
+
+  // ── Sub-tab pills ──
+  const subPills=React.createElement("div",{style:{display:"flex",gap:6,marginBottom:20}},
+    [["backtest","◈ Backtest"],["watchlist","📌 Watchlist"],["intel","🛡 Intel"]].map(([k,l])=>React.createElement("button",{key:k,onClick:()=>setSubTab(k),style:{padding:"6px 16px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",background:subTab===k?"#1d1d1f":"#f0f0f2",color:subTab===k?"#fff":C.textSec,border:"1px solid "+(subTab===k?"#1d1d1f":C.border)}},l)));
+
+  // ── Backtest section ──
+  let backtestSection=null;
+  if(subTab==="backtest"){
+    if(btLoading)backtestSection=React.createElement("div",{style:{color:C.textSec,padding:40,textAlign:"center"}},"Running backtest…");
+    else if(!btData)backtestSection=React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{style:{fontSize:36,marginBottom:12}},"📊"),React.createElement("div",{style:{fontSize:15,fontWeight:600}},"Loading backtest…"));
+    else{
+      const sd=btData.score_vs_returns||{},ld=btData.layer_attribution||{},ed=btData.earnings_timing||{};
+      const ltA=sd.lt_analysis||{},optA=sd.opt_analysis||{};
+      const ltCorr=ltA.correlation,optCorr=optA.correlation;
+      const qs=ltA.quintile_spread,obs=ltA.data_points||0;
+      const modelHealth=(ltCorr>0.15&&qs>2)?"Strong":(ltCorr>0.05||qs>1)?"Moderate":"Weak";
+      const modelCol=modelHealth==="Strong"?C.green:modelHealth==="Moderate"?C.amber:C.red;
+      const qc=[];if(ltA.status==="ok"&&ltA.quintiles)Object.entries(ltA.quintiles).forEach(([l,s])=>{qc.push({name:l,"return":s.avg_return,winRate:s.win_rate,count:s.count})});
+      const q1ret=qc.find(q=>q.name==="Q1")?.return||0,q5ret=qc.find(q=>q.name==="Q5")?.return||0,spread=q5ret-q1ret;
+      const compLabels={lt_rule_of_40:"Rule of 40",lt_valuation:"Valuation",lt_fcf_margin:"FCF Margin",lt_trend:"Trend",lt_earnings_quality:"Earn. Quality",lt_discount_momentum:"Disc. Mom."};
+      const lc=[];if(ld.lt_component_attribution)Object.entries(ld.lt_component_attribution).forEach(([k,v])=>{if(v.correlation!=null)lc.push({name:compLabels[k]||k,alpha:v.correlation,alpha_pct:v.correlation*100})});lc.sort((a,b)=>b.alpha-a.alpha);
+      const ec=[];if(ed.forward_14d&&ed.forward_30d)Object.entries(ed.forward_14d).forEach(([label,v14])=>{const v30=ed.forward_30d[label]||{};if((v14.count||0)>0||(v30.count||0)>0)ec.push({name:label,return14d:v14.avg_return||0,return30d:v30.avg_return||0,count:v14.count||0})});
+      const bestWindow=ec.length>0?ec.reduce((a,b)=>a.return14d>b.return14d?a:b).name:"—";
+      const WH=wtHist?.history||[];
+      const ltHist=WH.filter(w=>w.score_type==="lt").slice(0,10);
+      const ltKeys=["rule_of_40","valuation","fcf_margin","trend","earnings_quality","discount_momentum"];
+      const ltLabels={rule_of_40:"Rule of 40",valuation:"Valuation",fcf_margin:"FCF Margin",trend:"Trend",earnings_quality:"Earn. Quality",discount_momentum:"Disc. Mom."};
+      backtestSection=React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:20}},
+        React.createElement(Card,{style:{padding:20}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:16}},
+            React.createElement("div",null,React.createElement("h2",{style:{fontSize:17,fontWeight:700,margin:0}},"Model Health"),React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:"4px 0 0"}},"180-day lookback · "+obs+" score/return observations")),
+            React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+              React.createElement("span",{style:{fontSize:13,fontWeight:700,padding:"6px 14px",borderRadius:8,background:modelCol+"18",color:modelCol,border:"1px solid "+modelCol+"40"}},modelHealth+" Signal"),
+              React.createElement("button",{onClick:runCalibrate,disabled:calRunning,style:{padding:"8px 16px",borderRadius:8,fontSize:12,fontWeight:600,cursor:calRunning?"wait":"pointer",background:C.blueBg,color:C.blue,border:"1px solid "+C.blueBorder}},calRunning?"Calibrating…":"⚙ Auto-Calibrate"),
+              calMsg&&React.createElement("span",{style:{fontSize:11,color:C.textSec}},calMsg))),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12}},
+            React.createElement(Metric,{label:"LT Score Correlation",value:ltCorr!=null?ltCorr.toFixed(3):"—",color:ltCorr!=null?(ltCorr>0.15?C.green:ltCorr>0.05?C.amber:C.red):C.textSec,sub:ltCorr!=null?(ltCorr>0.15?"Strong predictive power":ltCorr>0.05?"Moderate signal":"Weak / no signal"):"No data yet"}),
+            React.createElement(Metric,{label:"Q5 − Q1 Spread",value:spread!=null?spread.toFixed(1)+"%":"—",color:spread>3?C.green:spread>1?C.amber:C.red,sub:spread>3?"Top scores beat bottom by >3%":spread>1?"Moderate separation":"Scores not yet discriminating"}),
+            React.createElement(Metric,{label:"Opt Score Correlation",value:optCorr!=null?optCorr.toFixed(3):"—",color:optCorr!=null?(optCorr>0.1?C.green:optCorr<-0.05?C.red:C.amber):C.textSec,sub:"Options score vs "+period+"d return"}),
+            React.createElement(Metric,{label:"Best Entry Window",value:bestWindow,color:C.blue,sub:"Days-to-earnings timing"}))),
+        React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+          React.createElement("span",{style:{fontSize:12,color:C.textSec,fontWeight:600}},"Forward return window:"),
+          [14,30,60].map(p=>React.createElement("button",{key:p,onClick:()=>{setPeriod(p);loadBT(p)},style:{padding:"7px 16px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:mono,background:period===p?C.blueBg:C.bgCard,border:"1px solid "+(period===p?C.blue+"40":C.border),color:period===p?C.blue:C.textSec}},p+"d")),
+          React.createElement("span",{style:{fontSize:11,color:C.textTri,marginLeft:"auto",fontFamily:mono}},obs+" observations")),
+        qc.length>0&&React.createElement(Card,{style:{padding:20}},
+          React.createElement("div",{style:{marginBottom:14}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Score Quintile → "+period+"d Return"),React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0,lineHeight:1.6}},"Tickers ranked by LT Score and split into 5 equal buckets (Q1=lowest 20%, Q5=highest 20%). Their actual "+period+"-day stock returns are averaged per bucket. ",React.createElement("strong",null,"A working model shows Q5 outperforming Q1.")," A flat or inverted chart means scores aren't yet predictive — run Auto-Calibrate to reweight.")),
+          React.createElement(SvgBarChart,{data:qc,dataKey:"return",labelKey:"name",height:240,colorFn:(d,v)=>v>=0?C.green:C.red}),
+          React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginTop:12}},
+            qc.map(d=>React.createElement("div",{key:d.name,style:{padding:"8px 10px",background:C.bg,borderRadius:8,border:"1px solid "+C.border,textAlign:"center"}},
+              React.createElement("div",{style:{fontSize:11,fontWeight:700,fontFamily:mono,color:d.return>=0?C.green:C.red}},(d.return>=0?"+":"")+d.return.toFixed(1)+"%"),
+              React.createElement("div",{style:{fontSize:10,color:C.textSec,marginTop:2}},d.name+" · n="+d.count),
+              React.createElement("div",{style:{fontSize:10,color:C.textTri}},(d.winRate||0).toFixed(0)+"% winners"))))),
+        ltCorr!=null&&React.createElement("div",null,
+          React.createElement(Card,{style:{padding:16,background:ltCorr<-0.05?"#fffbeb":"#f0fdf4",border:"1px solid "+(ltCorr<-0.05?"#fcd34d":C.greenBorder)}},
+            React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
+              ltCorr<-0.05?React.createElement("div",null,React.createElement("span",{style:{fontSize:14,fontWeight:700,color:"#92400e"}},"⚠️ Model Inversion Detected  "),React.createElement("span",{style:{fontSize:12,color:"#78350f"}},"LT correlation is "+ltCorr.toFixed(3)+" — high-scored tickers are historically underperforming.")):React.createElement("div",null,React.createElement("span",{style:{fontSize:14,fontWeight:700,color:C.green}},"✓ Model is Normally Correlated  "),React.createElement("span",{style:{fontSize:12,color:C.textSec}},"LT correlation: "+ltCorr.toFixed(3)+". Inverse mode available as a research tool.")),
+              React.createElement("button",{onClick:async()=>{const opening=!inverseOpen;setInverseOpen(opening);if(opening&&!inversePlays){setInvLoading(true);const d=await api("/inverse-plays?limit=8");setInversePlays(d);setInvLoading(false)}},style:{padding:"8px 16px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",background:ltCorr<-0.05?"#fef3c7":"#f0fdf4",color:ltCorr<-0.05?"#92400e":C.green,border:"1px solid "+(ltCorr<-0.05?"#fcd34d":C.greenBorder)}},inverseOpen?"▲ Hide Anti-Augur":"🔄 Inverse the Plan"))),
+          inverseOpen&&React.createElement(Card,{style:{padding:20,marginTop:12,border:"2px dashed "+(ltCorr<-0.05?"#fcd34d":"#bbf7d0")}},
+            React.createElement("div",{style:{marginBottom:14}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px",color:ltCorr<-0.05?"#92400e":C.text}},"🃏 Anti-Augur: Contrarian Plays"),React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:"0 0 10px",lineHeight:1.6}},"These are the tickers Augur scores ",React.createElement("em",null,"lowest")," in the current universe. ",ltCorr<-0.05?"When the model is inverted, these low-confidence tickers have historically been the actual outperformers. ":"Shown as a research overlay. ",inversePlays?.q1_avg_return!=null&&React.createElement("strong",{style:{color:ltCorr<-0.05?C.green:C.textSec}}," Q1 avg return: "+(inversePlays.q1_avg_return>=0?"+":"")+inversePlays.q1_avg_return.toFixed(1)+"% · Win rate: "+(inversePlays.q1_win_rate||0).toFixed(0)+"%.")),inversePlays?.is_inverted&&React.createElement("div",{style:{padding:"8px 12px",background:"#fef3c7",borderRadius:8,border:"1px solid #fcd34d",fontSize:12,color:"#92400e",marginBottom:10}},inversePlays.interpretation)),
+            invLoading&&React.createElement("div",{style:{color:C.textSec,fontSize:12,padding:"12px 0"}},"Loading contrarian plays…"),
+            !invLoading&&inversePlays&&inversePlays.plays&&React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}},
+              inversePlays.plays.map(p=>React.createElement("div",{key:p.ticker,style:{padding:"12px 14px",background:C.bg,borderRadius:10,border:"1px solid "+C.border}},
+                React.createElement("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},React.createElement("span",{style:{fontSize:14,fontWeight:800,fontFamily:mono}},p.ticker),React.createElement("span",{style:{fontSize:11,color:C.textSec}},"$"+(p.price||"—"))),
+                React.createElement("div",{style:{display:"flex",gap:8,marginBottom:6}},React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{fontSize:9,color:C.textTri,marginBottom:2}},"LT"),React.createElement("div",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:C.red}},(p.lt_score||0).toFixed(0))),React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{fontSize:9,color:C.textTri,marginBottom:2}},"OPT"),React.createElement("div",{style:{fontSize:12,fontWeight:700,fontFamily:mono,color:C.amber}},(p.opt_score||0).toFixed(0))),React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{fontSize:9,color:C.textTri,marginBottom:2}},"COMBINED"),React.createElement("div",{style:{fontSize:12,fontWeight:700,fontFamily:mono}},(p.combined_score||0).toFixed(0)))),
+                React.createElement("div",{style:{fontSize:10,color:C.textSec,lineHeight:1.4}},p.inverse_reason||"Low conviction score")))))),
+        lc.length>0&&React.createElement(Card,{style:{padding:20}},
+          React.createElement("div",{style:{marginBottom:14}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Component Predictive Power"),React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0,lineHeight:1.6}},"Pearson correlation between each score component and "+period+"-day forward returns. ",React.createElement("strong",null,"Positive = component predicts gains; negative = contrarian or noisy.")," Use Auto-Calibrate to apply.")),
+          React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+            lc.map(item=>{const pct=Math.abs(item.alpha)*100,maxBar=200,barW=Math.min(100,pct*maxBar);const col=item.alpha>0.05?C.green:item.alpha<-0.02?C.red:C.textSec;return React.createElement("div",{key:item.name,style:{display:"grid",gridTemplateColumns:"140px 1fr 70px",alignItems:"center",gap:10}},React.createElement("span",{style:{fontSize:12,fontWeight:600,color:C.text}},item.name),React.createElement("div",{style:{height:8,background:C.border,borderRadius:4,overflow:"hidden"}},React.createElement("div",{style:{height:"100%",width:barW+"%",background:col,borderRadius:4,transition:"width .4s"}})),React.createElement("span",{style:{fontSize:12,fontFamily:mono,fontWeight:700,color:col,textAlign:"right"}},(item.alpha>=0?"+":"")+item.alpha.toFixed(3)))})),
+          React.createElement("p",{style:{fontSize:11,color:C.textTri,marginTop:12}},"Interpretation: >+0.10 = strong positive signal · -0.02 to +0.10 = neutral · <-0.02 = noisy or contrarian")),
+        ec.length>0&&React.createElement(Card,{style:{padding:20}},
+          React.createElement("div",{style:{marginBottom:14}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Earnings Entry Timing"),React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0,lineHeight:1.6}},"Average returns when entering at different distances from earnings. ",React.createElement("strong",null,"Best window: "+bestWindow+"."))),
+          React.createElement(SvgGroupedBarChart,{data:ec,bars:[{key:"return14d",name:"14d Return",color:C.blue},{key:"return30d",name:"30d Return",color:C.purple}],labelKey:"name",height:200}),
+          React.createElement("div",{style:{display:"flex",gap:16,marginTop:10,flexWrap:"wrap"}},
+            ec.map(d=>React.createElement("div",{key:d.name,style:{padding:"6px 10px",background:C.bg,borderRadius:6,border:"1px solid "+C.border,fontSize:11}},React.createElement("div",{style:{fontWeight:700,marginBottom:2}},d.name),React.createElement("div",{style:{color:C.blue,fontFamily:mono}},"14d: "+(d.return14d>=0?"+":"")+d.return14d.toFixed(1)+"%"),React.createElement("div",{style:{color:C.purple,fontFamily:mono}},"30d: "+(d.return30d>=0?"+":"")+d.return30d.toFixed(1)+"%"),React.createElement("div",{style:{color:C.textTri,marginTop:2}},"n="+d.count))))),
+        React.createElement(Card,{style:{padding:20}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}},
+            React.createElement("div",null,React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:"0 0 4px"}},"Weight Calibration Log"),React.createElement("p",{style:{fontSize:12,color:C.textSec,margin:0}},"History of all LT score weight adjustments made by Auto-Calibrate")),
+            React.createElement("button",{onClick:loadWH,style:{padding:"6px 14px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",background:C.bg,color:C.textSec,border:"1px solid "+C.border}},"↻ Refresh")),
+          ltHist.length===0&&React.createElement("div",{style:{padding:"20px 0",textAlign:"center",color:C.textSec,fontSize:13}},"No calibrations yet. Click Auto-Calibrate above to run the first one."),
+          ltHist.length>0&&React.createElement("div",{style:{overflowX:"auto"}},
+            React.createElement("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+              React.createElement("thead",null,React.createElement("tr",{style:{borderBottom:"2px solid "+C.border}},React.createElement("th",{style:{padding:"6px 8px",textAlign:"left",color:C.textSec,fontWeight:600}},"Date"),React.createElement("th",{style:{padding:"6px 8px",textAlign:"right",color:C.textSec,fontWeight:600}},"Corr"),React.createElement("th",{style:{padding:"6px 8px",textAlign:"right",color:C.textSec,fontWeight:600}},"Q-Spread"),ltKeys.map(k=>React.createElement("th",{key:k,style:{padding:"6px 8px",textAlign:"right",color:C.textSec,fontWeight:600,fontSize:10}},ltLabels[k]||k)))),
+              React.createElement("tbody",null,
+                ltHist.map((row,i)=>{const prev=ltHist[i+1];const w=row.weights||{},pw=prev?.weights||{};return React.createElement("tr",{key:row.id,style:{borderBottom:"1px solid "+C.border,background:i%2===0?C.bg:"transparent"}},
+                  React.createElement("td",{style:{padding:"6px 8px",color:C.textSec,whiteSpace:"nowrap"}},fmtCalRow(row.timestamp,tz)),
+                  React.createElement("td",{style:{padding:"6px 8px",textAlign:"right",fontFamily:mono,color:row.backtest_correlation!=null?(row.backtest_correlation>0.1?C.green:row.backtest_correlation<0?C.red:C.amber):C.textSec}},row.backtest_correlation!=null?row.backtest_correlation.toFixed(3):"—"),
+                  React.createElement("td",{style:{padding:"6px 8px",textAlign:"right",fontFamily:mono,color:row.backtest_quintile_spread!=null?(row.backtest_quintile_spread>2?C.green:C.amber):C.textSec}},row.backtest_quintile_spread!=null?row.backtest_quintile_spread.toFixed(1)+"%":"—"),
+                  ltKeys.map(k=>{const cur=w[k],prv=pw[k];const delta=cur!=null&&prv!=null?cur-prv:null;return React.createElement("td",{key:k,style:{padding:"6px 8px",textAlign:"right",fontFamily:mono}},cur!=null?React.createElement("span",null,cur,delta!=null&&delta!==0&&React.createElement("span",{style:{fontSize:10,color:delta>0?C.green:C.red,marginLeft:3}},(delta>0?"+":"")+delta)):"—")}))})))))
+        ,qc.length===0&&lc.length===0&&React.createElement(Card,{style:{padding:40,textAlign:"center"}},React.createElement("div",{style:{fontSize:36,marginBottom:12}},"📊"),React.createElement("div",{style:{fontSize:15,fontWeight:600,marginBottom:6}},"Not enough data yet"),React.createElement("div",{style:{fontSize:12,color:C.textSec,maxWidth:400,margin:"0 auto",lineHeight:1.7}},"The backtest engine needs scores from multiple days to measure predictive power.")));
+    }
+  }
+
+  // ── Watchlist section ──
+  let watchlistSection=null;
+  if(subTab==="watchlist"){
+    watchlistSection=React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:20}},
+      React.createElement(Card,{style:{padding:20}},
+        React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:4}},"📌 Custom Watchlist"),
+        React.createElement("p",{style:{fontSize:12,color:C.textSec,marginBottom:16,lineHeight:1.6}},"Track any ticker — even those outside the standard universe. Watchlist tickers are automatically included in the next scan, news feed, and scoring pipeline."),
+        React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}},
+          React.createElement("div",{style:{flex:"0 0 120px"}},React.createElement("label",{style:{fontSize:10,fontWeight:600,color:C.textSec,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".04em"}},"Ticker"),React.createElement("input",{value:wlInput,onChange:e=>setWlInput(e.target.value.toUpperCase()),placeholder:"e.g. VZ",maxLength:10,onKeyDown:e=>e.key==="Enter"&&addTicker(),style:{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid "+C.border,fontSize:13,fontFamily:mono,fontWeight:700,background:C.bgCard,color:C.text}})),
+          React.createElement("div",{style:{flex:"0 0 100px"}},React.createElement("label",{style:{fontSize:10,fontWeight:600,color:C.textSec,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".04em"}},"Sector"),React.createElement("select",{value:wlSector,onChange:e=>setWlSector(e.target.value),style:{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,background:C.bgCard,color:C.text}},["unknown","cyber","energy","defense","tech","finance","health"].map(s=>React.createElement("option",{key:s,value:s},s.charAt(0).toUpperCase()+s.slice(1))))),
+          React.createElement("div",{style:{flex:1,minWidth:140}},React.createElement("label",{style:{fontSize:10,fontWeight:600,color:C.textSec,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".04em"}},"Notes (optional)"),React.createElement("input",{value:wlNotes,onChange:e=>setWlNotes(e.target.value),placeholder:"Why tracking this...",style:{width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid "+C.border,fontSize:12,background:C.bgCard,color:C.text}})),
+          React.createElement("button",{onClick:addTicker,disabled:wlSaving||!wlInput.trim(),style:{padding:"8px 18px",borderRadius:8,fontSize:13,fontWeight:600,cursor:wlSaving||!wlInput.trim()?"not-allowed":"pointer",background:C.blue,color:"#fff",border:"none",opacity:wlSaving||!wlInput.trim()?.6:1}},wlSaving?"Adding...":"+ Add")),
+        wlMsg&&React.createElement("div",{style:{marginTop:8,fontSize:12,color:wlMsg.startsWith("⏳")?C.amber:wlMsg.includes("Failed")?C.red:C.green}},wlMsg)),
+      wlItems===null&&React.createElement(Card,{style:{padding:32,textAlign:"center"}},React.createElement("div",{className:"pulse",style:{color:C.textSec,fontSize:13}},"Loading watchlist...")),
+      wlItems!==null&&wlItems.length===0&&React.createElement(Card,{style:{padding:32,textAlign:"center"}},React.createElement("div",{style:{fontSize:28,marginBottom:10}},"📌"),React.createElement("div",{style:{fontSize:14,fontWeight:600,marginBottom:6}},"Your watchlist is empty"),React.createElement("div",{style:{fontSize:12,color:C.textSec,maxWidth:400,margin:"0 auto",lineHeight:1.6}},"Add tickers above to track any stock. They'll be included in the next scan and scored alongside the standard universe.")),
+      wlItems!==null&&wlItems.length>0&&React.createElement(Card,{style:{padding:0,overflow:"hidden"}},
+        React.createElement("div",{style:{padding:"14px 20px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between"}},React.createElement("span",{style:{fontSize:13,fontWeight:700}},"Tracked Tickers"),React.createElement("span",{style:{fontSize:11,color:C.textSec}},wlItems.length+" ticker"+(wlItems.length!==1?"s":"")+" tracked")),
+        wlItems.map((item,i)=>{const hasS=item.has_scores;const ltC=item.lt_score>=60?C.green:item.lt_score>=35?C.amber:C.red;const optC=item.opt_score>=40?C.green:item.opt_score>=25?C.amber:C.red;return React.createElement("div",{key:item.ticker,style:{display:"grid",gridTemplateColumns:"60px 80px 1fr 90px 90px 80px 48px",alignItems:"center",gap:10,padding:"12px 20px",borderBottom:i<wlItems.length-1?"1px solid "+C.border:"none",background:i%2===0?"#fbfbfd":C.bgCard}},
+          React.createElement("span",{style:{fontSize:14,fontWeight:800,fontFamily:mono,color:C.text}},item.ticker),
+          React.createElement("span",{style:{fontSize:11,fontFamily:mono,color:C.textSec}},item.price?"$"+item.price:"No scan yet"),
+          React.createElement("div",null,React.createElement("span",{style:{fontSize:11,color:C.textSec,display:"block"}},item.sector!=="unknown"?item.sector.charAt(0).toUpperCase()+item.sector.slice(1):""),item.notes&&React.createElement("span",{style:{fontSize:10,color:C.textTri}},item.notes)),
+          hasS?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},React.createElement("span",{style:{fontSize:10,color:C.textSec,marginRight:2}},"LT"),React.createElement(ScoreBar,{score:item.lt_score})):React.createElement("span",{style:{fontSize:10,color:C.textTri}},"Pending scan"),
+          hasS?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:4}},React.createElement("span",{style:{fontSize:10,color:C.textSec,marginRight:2}},"Opt"),React.createElement(ScoreBar,{score:item.opt_score})):null,
+          hasS&&item.outage_status==="outage"?React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:5,background:C.redBg,color:C.red,border:"1px solid "+C.redBorder}},"🔴 OUTAGE"):hasS&&item.outage_status==="degraded"?React.createElement("span",{style:{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:5,background:"#fff8e1",color:C.amber,border:"1px solid #ffe082"}},"⚠ DEGRADED"):React.createElement("span",null),
+          React.createElement("button",{onClick:()=>removeTicker(item.ticker),style:{padding:"4px 10px",borderRadius:6,border:"1px solid "+C.redBorder,background:C.redBg,color:C.red,fontSize:10,fontWeight:600,cursor:"pointer"}},"✕"))})));
+  }
+
+  // ── Intel section ──
+  let intelSection=null;
+  if(subTab==="intel"){
+    intelSection=React.createElement("div",{className:"fade-in",style:{display:"flex",gap:20,alignItems:"flex-start"}},
+      React.createElement("div",{style:{flex:"0 0 55%",display:"flex",flexDirection:"column",gap:16}},
+        React.createElement(Card,{style:{padding:20}},
+          React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}},React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:0}},"🛡 Cyber Threat Feed"),news&&React.createElement("span",{style:{fontSize:11,color:C.textSec}},fmtTimeOnly(news.fetched_at,tz))),
+          newsLoading&&React.createElement("div",{style:{color:C.textSec,fontSize:13,padding:"20px 0",textAlign:"center"}},"Fetching feeds..."),
+          !newsLoading&&(!news||!news.items||news.items.length===0)&&React.createElement("div",{style:{color:C.textSec,fontSize:13,textAlign:"center",padding:"20px 0"}},"No articles fetched. Check RSS sources."),
+          !newsLoading&&news&&news.items&&news.items.map((item,i)=>React.createElement("div",{key:i,style:{borderTop:i>0?"1px solid "+C.border:"none",paddingTop:i>0?12:0,marginTop:i>0?4:0}},
+            React.createElement("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:4}},React.createElement("a",{href:item.link,target:"_blank",rel:"noopener",style:{fontSize:13,fontWeight:600,color:C.blue,textDecoration:"none",lineHeight:1.4,flex:1}},item.title||"(no title)"),React.createElement("span",{style:{fontSize:10,color:C.textTri,whiteSpace:"nowrap",marginTop:2}},item.source)),
+            item.summary&&React.createElement("div",{style:{fontSize:11,color:C.textSec,lineHeight:1.5,marginBottom:5}},item.summary.slice(0,160)+(item.summary.length>160?"…":"")),
+            React.createElement("div",{style:{display:"flex",flexWrap:"wrap",gap:4,alignItems:"center"}},item.tags&&item.tags.slice(0,4).map(t=>React.createElement("span",{key:t,style:{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:5,background:tagColors[t]||"#f5f5f5",color:tagTxtColors[t]||C.textSec,border:"1px solid "+(tagTxtColors[t]||C.textSec)+"30"}},t)),item.ticker_mentions&&item.ticker_mentions.length>0&&item.ticker_mentions.slice(0,5).map(tk=>React.createElement("span",{key:tk,style:{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:5,background:C.blueBg,color:C.blue,border:"1px solid "+C.blueBorder,fontFamily:mono}},tk))))))),
+      React.createElement("div",{style:{flex:"0 0 calc(45% - 20px)",display:"flex",flexDirection:"column",gap:16}},
+        React.createElement(Card,{style:{padding:20}},
+          React.createElement("h2",{style:{fontSize:16,fontWeight:700,marginBottom:14}},"🔴 Service Status"),
+          outLoading&&React.createElement("div",{style:{color:C.textSec,fontSize:13,padding:"20px 0",textAlign:"center"}},"Checking status pages..."),
+          !outLoading&&outages&&outages.map(svc=>React.createElement("div",{key:svc.ticker,style:{padding:"10px 12px",background:statusBg[svc.status]||C.bgCard,border:"1px solid "+(statusBrd[svc.status]||C.border),borderRadius:10,marginBottom:8,display:"flex",alignItems:"center",gap:10}},
+            React.createElement("span",{style:{fontFamily:mono,fontSize:11,fontWeight:700,color:C.textSec,minWidth:36}},svc.ticker),
+            React.createElement("span",{style:{flex:1,fontSize:13,fontWeight:600,color:C.text}},svc.name),
+            svc.components_affected&&svc.components_affected.length>0&&React.createElement("span",{style:{fontSize:10,color:C.red,flex:1}},svc.components_affected.slice(0,2).join(", ")+(svc.components_affected.length>2?" +"+(svc.components_affected.length-2)+" more":"")),
+            React.createElement("span",{style:{fontSize:12,fontWeight:700,color:statusCol[svc.status]||C.textSec,display:"flex",alignItems:"center",gap:4}},React.createElement("span",{style:{fontSize:14}},statusIcon[svc.status]||"?"),svc.status||"unknown"))))));
+  }
+
+  return React.createElement("div",{className:"fade-in",style:{display:"flex",flexDirection:"column",gap:0}},
+    subPills,
+    subTab==="backtest"&&backtestSection,
+    subTab==="watchlist"&&watchlistSection,
+    subTab==="intel"&&intelSection);
+}
+
+// ─── App Shell ───
+// ── Auth Modal (Login / Register) ──
+function AuthModal({onAuth,onClose}){
+  const [mode,setMode]=useState("login"),[email,setEmail]=useState(""),[pw,setPw]=useState(""),[name,setName]=useState(""),[err,setErr]=useState(""),[loading,setLoading]=useState(false);
+  const submit=async e=>{e.preventDefault();setErr("");setLoading(true);
+    try{const endpoint=mode==="login"?"/auth/login":"/auth/register";
+      const body=mode==="login"?{email,password:pw}:{email,password:pw,augur_name:name};
+      const r=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const d=await r.json();if(!r.ok)throw new Error(d.detail||"Failed");
+      _setTokens(d.access_token,d.refresh_token);
+      localStorage.setItem('augur_user',JSON.stringify({id:d.user_id,augur_name:d.augur_name,is_admin:!!d.is_admin}));
+      onAuth({id:d.user_id,augur_name:d.augur_name,is_admin:!!d.is_admin,needs_augur_profile:d.needs_augur_profile});
+    }catch(ex){setErr(ex.message)}finally{setLoading(false)}};
+  const S={overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(8px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"},
+    box:{background:"#fff",borderRadius:20,padding:32,width:380,maxWidth:"90vw",boxShadow:"0 20px 60px rgba(0,0,0,.2)"},
+    input:{width:"100%",padding:"10px 14px",borderRadius:10,border:"1px solid "+C.border,fontSize:14,fontFamily:"Inter",outline:"none",marginBottom:10},
+    btn:{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#5856d6,#007aff)",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"wait":"pointer",opacity:loading?.7:1}};
+  return React.createElement("div",{style:S.overlay,onClick:onClose},
+    React.createElement("div",{style:S.box,onClick:e=>e.stopPropagation()},
+      React.createElement("div",{style:{textAlign:"center",marginBottom:20}},
+        React.createElement("div",{style:{width:56,height:56,borderRadius:16,background:"linear-gradient(135deg,#5856d6,#007aff)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:24,fontWeight:800}},"A"),
+        React.createElement("h2",{style:{fontSize:22,fontWeight:800,margin:0}},mode==="login"?"Welcome Back":"Create Your Augur"),
+        React.createElement("p",{style:{fontSize:13,color:C.textSec,marginTop:4}},mode==="login"?"Sign in to see your personalized scores":"Join the Oracle's forum")),
+      React.createElement("form",{onSubmit:submit},
+        mode==="register"&&React.createElement("input",{style:S.input,placeholder:"Augur Name",value:name,onChange:e=>setName(e.target.value),maxLength:24,required:true}),
+        React.createElement("input",{style:S.input,type:"email",placeholder:"Email",value:email,onChange:e=>setEmail(e.target.value),required:true}),
+        React.createElement("input",{style:S.input,type:"password",placeholder:"Password"+(mode==="register"?" (min 8 chars)":""),value:pw,onChange:e=>setPw(e.target.value),minLength:mode==="register"?8:1,required:true}),
+        err&&React.createElement("div",{style:{color:C.red,fontSize:12,marginBottom:8,fontWeight:500}},err),
+        React.createElement("button",{type:"submit",style:S.btn,disabled:loading},loading?"...":(mode==="login"?"Sign In":"Create Account")),
+        React.createElement("p",{style:{textAlign:"center",fontSize:12,color:C.textSec,marginTop:12,cursor:"pointer"},onClick:()=>{setMode(mode==="login"?"register":"login");setErr("")}},
+          mode==="login"?"Don't have an account? Register":"Already have an account? Sign in"))));
+}
+
+// ── Augur Character Creator ──
+const AUGUR_ATTRS=[
+  {key:"prudentia",icon:"🛡️",name:"Prudentia",desc:"Caution — boosts valuation & earnings quality weights"},
+  {key:"audacia",icon:"⚔️",name:"Audacia",desc:"Boldness — boosts directional conviction & asymmetry"},
+  {key:"sapientia",icon:"📜",name:"Sapientia",desc:"Wisdom — boosts FCF margin & Rule of 40"},
+  {key:"fortuna",icon:"🎲",name:"Fortuna",desc:"Momentum — boosts discount momentum & trend"},
+  {key:"prospectus",icon:"👁",name:"Prospectus",desc:"Vision — boosts earnings catalyst & IV context"},
+  {key:"liquiditas",icon:"💧",name:"Liquiditas",desc:"Liquidity — boosts liquidity & technical setup"},
+];
+function AugurCreator({user,onCreated}){
+  const [attrs,setAttrs]=useState({prudentia:6,audacia:6,sapientia:6,fortuna:6,prospectus:6,liquiditas:6});
+  const [err,setErr]=useState(""),[loading,setLoading]=useState(false),[preview,setPreview]=useState(null);
+  const pool=36,used=Object.values(attrs).reduce((a,b)=>a+b,0),remaining=pool-used;
+  const setAttr=(key,val)=>{const nv=Math.max(1,Math.min(10,parseInt(val)||1));setAttrs(p=>({...p,[key]:nv}))};
+  const submit=async()=>{if(remaining!==0){setErr("Points must sum to "+pool+" ("+remaining+" remaining)");return}
+    setErr("");setLoading(true);
+    try{const r=await fetch("/augur/create",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+_getToken()},body:JSON.stringify(attrs)});
+      const d=await r.json();if(!r.ok)throw new Error(d.detail||"Failed");onCreated(d);
+    }catch(ex){setErr(ex.message)}finally{setLoading(false)}};
+  // Preview effect
+  useEffect(()=>{if(remaining===0){const dom=Object.entries(attrs).sort((a,b)=>b[1]-a[1])[0];
+    const info=AUGUR_ATTRS.find(a=>a.key===dom[0]);setPreview(info)}else setPreview(null)},[attrs]);
+  const S={wrap:{background:"#fff",borderRadius:20,padding:32,maxWidth:560,margin:"40px auto",boxShadow:"0 4px 24px rgba(0,0,0,.08)"},
+    row:{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid "+C.border},
+    slider:{flex:1},btn:{padding:"14px 28px",borderRadius:14,border:"none",background:remaining===0?"linear-gradient(135deg,#5856d6,#007aff)":"#e5e5ea",color:remaining===0?"#fff":"#999",fontSize:15,fontWeight:700,cursor:remaining===0?"pointer":"not-allowed",width:"100%",marginTop:16}};
+  return React.createElement("div",{style:S.wrap},
+    React.createElement("div",{style:{textAlign:"center",marginBottom:24}},
+      React.createElement("h2",{style:{fontSize:24,fontWeight:800,margin:0}},"Forge Your Augur"),
+      React.createElement("p",{style:{fontSize:13,color:C.textSec,marginTop:6}},"Distribute "+pool+" points across 6 attributes. Each shapes how you see the market."),
+      React.createElement("div",{style:{marginTop:12,display:"inline-flex",gap:8,alignItems:"center",padding:"6px 16px",borderRadius:10,background:remaining===0?C.greenBg:remaining<0?C.redBg:C.amberBg,border:"1px solid "+(remaining===0?C.greenBorder:remaining<0?C.redBorder:"#fcd34d")}},
+        React.createElement("span",{style:{fontSize:13,fontWeight:700,color:remaining===0?C.green:remaining<0?C.red:C.amber}},remaining===0?"✓ Balanced":remaining>0?remaining+" points remaining":Math.abs(remaining)+" over budget"))),
+    AUGUR_ATTRS.map(a=>React.createElement("div",{key:a.key,style:S.row},
+      React.createElement("span",{style:{fontSize:20,width:32,textAlign:"center"}},a.icon),
+      React.createElement("div",{style:{minWidth:90}},
+        React.createElement("div",{style:{fontSize:13,fontWeight:700}},a.name),
+        React.createElement("div",{style:{fontSize:10,color:C.textSec}},a.desc)),
+      React.createElement("div",{style:S.slider},
+        React.createElement("input",{type:"range",min:1,max:10,value:attrs[a.key],onChange:e=>setAttr(a.key,e.target.value),style:{width:"100%"}})),
+      React.createElement("span",{style:{fontFamily:mono,fontSize:18,fontWeight:700,width:28,textAlign:"center",color:attrs[a.key]>=8?C.blue:attrs[a.key]<=3?C.red:C.text}},attrs[a.key]))),
+    preview&&React.createElement("div",{style:{marginTop:16,padding:14,background:C.blueBg,borderRadius:12,border:"1px solid "+C.blueBorder}},
+      React.createElement("span",{style:{fontSize:13,fontWeight:600,color:C.blue}},preview.icon+" Dominant: "+preview.name),
+      React.createElement("span",{style:{fontSize:11,color:C.textSec,marginLeft:8}},preview.desc)),
+    err&&React.createElement("div",{style:{color:C.red,fontSize:12,marginTop:8,fontWeight:500}},err),
+    React.createElement("button",{onClick:submit,style:S.btn,disabled:remaining!==0||loading},loading?"Forging...":"⚔️ Forge Augur"));
+}
+
+function App(){
+  const [tab,setTab]=useState("overview"),[stats,setStats]=useState(null),[latest,setLatest]=useState(null),[backtest,setBacktest]=useState(null),[scanStatus,setScanStatus]=useState(null),[online,setOnline]=useState(null),[playTicker,setPlayTicker]=useState(null);
+  const [tz,setTz]=useState(()=>localStorage.getItem(TZ_KEY)||'');
+  const saveTz=v=>{setTz(v);localStorage.setItem(TZ_KEY,v)};
+  // ── Auth state ──
+  const [authUser,setAuthUser]=useState(()=>{try{const u=localStorage.getItem('augur_user');return u?JSON.parse(u):null}catch(e){return null}});
+  const [showAuth,setShowAuth]=useState(false);
+  const [showCreator,setShowCreator]=useState(false);
+  const [augurProfile,setAugurProfile]=useState(null);
+  const [personalScores,setPersonalScores]=useState(null);
+  const handleAuth=u=>{setAuthUser(u);setShowAuth(false);if(u.needs_augur_profile)setShowCreator(true);else loadAugurProfile()};
+  const handleLogout=()=>{_clearTokens();setAuthUser(null);setAugurProfile(null);setPersonalScores(null)};
+  const handleCreated=profile=>{setShowCreator(false);setAugurProfile(profile);loadPersonalScores()};
+  const loadAugurProfile=async()=>{const p=await api("/augur/profile");if(p)setAugurProfile(p)};
+  const loadPersonalScores=async()=>{const s=await api("/scores/latest/personalized?limit=600");if(s)setPersonalScores(s)};
+  useEffect(()=>{if(authUser&&_getToken()){loadAugurProfile();loadPersonalScores()}},[authUser]);
+  useEffect(()=>{(async()=>{const s=await api("/stats");if(s){setStats(s);setOnline(true)}else setOnline(false);const l=await api("/scores/latest?limit=600");if(l)setLatest(l);api("/backtest?days=180&forward_period=30").then(b=>{if(b)setBacktest(b)})})()},[]);
+  // Navigate to Plays tab and auto-load a ticker (from Killer Plays widget)
+  const onSelectPlay=useCallback(ticker=>{setPlayTicker(ticker);setTab("plays")},[]);
+  const triggerScan=async()=>{setScanStatus("running");const h={"Content-Type":"application/json"};const t=_getToken();if(t)h["Authorization"]="Bearer "+t;await fetch("/scan",{method:"POST",headers:h,body:"{}"});const poll=setInterval(async()=>{const s=await api("/scan/status");if(s&&!s.running){clearInterval(poll);setScanStatus("done");const ns=await api("/stats");if(ns)setStats(ns);const nl=await api("/scores/latest?limit=600");if(nl)setLatest(nl)}},3000)};
+  const TB=({active,onClick,children,icon})=>React.createElement("button",{onClick,style:{padding:"8px 16px",background:active?"#fff":"transparent",border:"1px solid "+(active?C.border:"transparent"),borderRadius:10,color:active?C.text:C.textSec,fontSize:13,fontWeight:active?600:500,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:active?C.shadow:"none"}},icon&&React.createElement("span",{style:{fontSize:13,opacity:.7}},icon),children);
+  return React.createElement("div",{style:{minHeight:"100vh",background:C.bg}},
+    React.createElement("header",{style:{padding:"14px 28px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(255,255,255,.88)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",position:"sticky",top:0,zIndex:100}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+        React.createElement("div",{style:{width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#5856d6,#007aff)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:15,fontWeight:800,letterSpacing:"-.02em"}},"A"),
+        React.createElement("div",null,React.createElement("h1",{style:{fontSize:18,fontWeight:800,margin:0,letterSpacing:"-.02em"}},"Augur"),React.createElement("span",{style:{fontSize:10,color:C.textSec,letterSpacing:".06em",textTransform:"uppercase",fontWeight:600}},"Multi-Sector Investment Oracle"))),
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:12}},
+        authUser&&augurProfile?React.createElement("div",{style:{display:"flex",alignItems:"center",gap:8,padding:"4px 12px",borderRadius:10,background:"linear-gradient(135deg,#5856d620,#007aff10)",border:"1px solid #5856d630"}},
+          React.createElement("div",{style:{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#5856d6,#007aff)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:800}},authUser.augur_name?authUser.augur_name[0].toUpperCase():"A"),
+          React.createElement("div",null,
+            React.createElement("div",{style:{fontSize:12,fontWeight:700,color:C.text}},authUser.augur_name),
+            React.createElement("div",{style:{fontSize:9,color:C.purple,fontWeight:600}},augurProfile.title||"Novice Augur")),
+          React.createElement("button",{onClick:handleLogout,title:"Logout",style:{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.textSec,padding:"2px 4px"}},"✕")):
+        authUser?React.createElement("span",{style:{fontSize:12,color:C.blue,fontWeight:600}},authUser.augur_name):
+        React.createElement("button",{onClick:()=>setShowAuth(true),style:{padding:"6px 14px",borderRadius:8,border:"1px solid "+C.purple+"40",background:C.purple+"10",color:C.purple,fontSize:11,fontWeight:600,cursor:"pointer"}},"⚔️ Sign In"),
+        React.createElement("div",{style:{display:"flex",alignItems:"center",gap:6}},React.createElement("div",{style:{width:7,height:7,borderRadius:"50%",background:online===true?C.green:online===false?C.red:C.amber,boxShadow:online===true?"0 0 6px "+C.green+"60":"none"}}),React.createElement("span",{style:{fontSize:11,color:C.textSec,fontWeight:500}},online===true?"Online":online===false?"Offline":"...")),
+        React.createElement("select",{value:tz,onChange:e=>saveTz(e.target.value),title:"Timezone",style:{fontSize:11,borderRadius:7,border:"1px solid "+C.border,padding:"5px 8px",background:C.bgCard,color:C.textSec,cursor:"pointer",fontFamily:mono}},TZ_OPTIONS.map(o=>React.createElement("option",{key:o.value,value:o.value},o.label))),
+        authUser&&authUser.is_admin&&React.createElement("button",{onClick:triggerScan,disabled:scanStatus==="running",style:{padding:"8px 18px",borderRadius:10,border:"1px solid "+(scanStatus==="running"?C.border:C.blue+"40"),background:scanStatus==="running"?"#f9f9f9":C.blueBg,color:scanStatus==="running"?C.textSec:C.blue,fontSize:12,fontWeight:600,cursor:scanStatus==="running"?"wait":"pointer",boxShadow:C.shadow}},scanStatus==="running"?"Scanning...":scanStatus==="done"?"✓ Done":"Run Scan"))),
+    online===false&&React.createElement("div",{style:{padding:"10px 28px",background:C.redBg,borderBottom:"1px solid "+C.redBorder,fontSize:12,color:C.red,fontWeight:500}},"API not reachable. Check server."),
+    React.createElement("nav",{style:{padding:"8px 28px",display:"flex",gap:4,background:C.bg,flexWrap:"wrap"}},
+      React.createElement(TB,{active:tab==="overview",onClick:()=>setTab("overview"),icon:"◉"},"Overview"),
+      React.createElement(TB,{active:tab==="scores",onClick:()=>setTab("scores"),icon:"📈"},"Long"),
+      React.createElement(TB,{active:tab==="plays",onClick:()=>setTab("plays"),icon:"⚡"},"Options"),
+      React.createElement(TB,{active:tab==="backtest",onClick:()=>setTab("backtest"),icon:"🔬"},"Research")),
+    showCreator?React.createElement("main",{style:{padding:"20px 28px",maxWidth:1360,margin:"0 auto"}},React.createElement(AugurCreator,{user:authUser,onCreated:handleCreated})):
+    React.createElement("main",{style:{padding:"20px 28px",maxWidth:1360,margin:"0 auto"}},
+      tab==="overview"&&React.createElement(OverviewTab,{stats,latest,onSelectPlay,tz}),
+      tab==="scores"&&React.createElement(ScoresTab,{latest,personalScores,authUser}),
+      tab==="plays"&&React.createElement(PlaysTab,{latest,defaultTicker:playTicker,tz}),
+      tab==="backtest"&&React.createElement(ResearchTab,{backtest,tz})),
+    showAuth&&React.createElement(AuthModal,{onAuth:handleAuth,onClose:()=>setShowAuth(false)}),
+    React.createElement("footer",{style:{padding:"16px 28px",borderTop:"1px solid "+C.border,textAlign:"center"}},React.createElement("span",{style:{fontSize:10,color:C.textTri,fontWeight:500}},"Augur v4.0 — For research purposes only. Not financial advice.")));}
+ReactDOM.render(React.createElement(App),document.getElementById("root"));
+</script>
+</body>
+</html>

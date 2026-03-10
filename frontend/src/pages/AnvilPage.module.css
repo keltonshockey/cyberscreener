@@ -1,0 +1,56 @@
+/* ── The Anvil Page ── */
+
+.layout { display: flex; gap: 16px; min-height: 60vh; }
+.sidebar { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+.loading { color: var(--color-text-secondary); font-size: 12px; padding: 12px 0; text-align: center; }
+
+.sectionLabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-secondary); margin-bottom: 10px; }
+
+/* Weight tuner */
+.tunerBtn { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--color-border-subtle); background: var(--color-bg-card); color: var(--color-text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; display: flex; justify-content: space-between; box-shadow: var(--shadow-sm); transition: all var(--transition-fast); }
+.tunerActive { background: var(--imperial-purple-glow); border-color: var(--imperial-purple); color: var(--imperial-purple); }
+
+.sliderRow { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.sliderLabel { font-size: 11px; color: var(--color-text-secondary); min-width: 75px; font-weight: 500; }
+.sliderVal { font-size: 12px; font-weight: 700; font-family: var(--font-mono); color: var(--imperial-purple); min-width: 24px; text-align: right; }
+
+.tunerFooter { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--color-border-subtle); font-size: 12px; font-weight: 700; font-family: var(--font-mono); }
+.tunerAction { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--color-border-subtle); background: var(--color-bg-card); color: var(--color-text-secondary); font-size: 10px; font-weight: 600; cursor: pointer; }
+.tunerApply { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--imperial-purple); background: var(--imperial-purple-glow); color: var(--imperial-purple); font-size: 10px; font-weight: 600; cursor: pointer; }
+
+/* Ticker list */
+.tickerRow { display: grid; grid-template-columns: 54px 1fr 40px; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer; border-left: 3px solid transparent; transition: background var(--transition-fast); }
+.tickerRow:hover { background: var(--color-bg); }
+.tickerSelected { background: var(--imperial-purple-glow); border-left-color: var(--imperial-purple); }
+.tickerSymbol { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
+.tickerPrice { font-size: 11px; color: var(--color-text-secondary); font-family: var(--font-mono); }
+
+/* Play cards */
+.playHeader { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--color-border-subtle); }
+.rcBar { padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+.rcBadge { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 16px; font-weight: 800; }
+.playMetrics { padding: 12px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.rationale { padding: 12px 20px; border-top: 1px solid var(--color-border-subtle); }
+.riskNotes { padding: 10px 20px; background: var(--color-danger-bg); border-top: 1px solid var(--forge-red-light); font-size: 11px; color: var(--color-danger); font-weight: 500; }
+
+.miniMetric { padding: 10px 12px; background: var(--color-bg); border-radius: 10px; }
+.miniLabel { font-size: 10px; color: var(--color-text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+.miniValue { font-size: 15px; font-weight: 700; font-family: var(--font-mono); color: var(--color-text); }
+
+.refreshBtn { font-size: 11px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--color-border-subtle); background: var(--color-bg); cursor: pointer; color: var(--imperial-purple); font-weight: 600; }
+.errorBanner { margin-top: 12px; padding: 16px; background: var(--color-danger-bg); border: 1px solid var(--forge-red-light); border-radius: 10px; color: var(--color-danger); font-size: 13px; }
+
+.componentCard { padding: 12px; background: var(--color-bg); border-radius: 10px; border: 1px solid var(--color-border-subtle); }
+.componentPts { font-size: 11px; font-weight: 700; font-family: var(--font-mono); color: var(--imperial-purple); }
+
+/* Play history table */
+.histTable { width: 100%; border-collapse: collapse; font-size: 11px; }
+.histTable th { text-align: left; padding: 4px 8px; color: var(--color-text-secondary); font-weight: 600; border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; }
+.histTable td { padding: 5px 8px; }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; max-height: 35vh; overflow-y: auto; }
+  .playMetrics { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+}

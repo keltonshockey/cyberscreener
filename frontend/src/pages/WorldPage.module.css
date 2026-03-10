@@ -1,0 +1,275 @@
+/* ── The World (3D Voxel Forum) ── */
+
+.layout {
+  display: flex;
+  gap: 16px;
+  min-height: 60vh;
+}
+
+.gameContainer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Controls bar ── */
+.controlsBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.controlKey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--imperial-purple);
+}
+
+.controlDivider {
+  width: 1px;
+  height: 12px;
+  background: var(--color-border-subtle);
+  margin: 0 4px;
+}
+
+/* ── Section labels ── */
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+
+/* ── District info ── */
+.districtInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.districtName {
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.districtDesc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+/* ── Legend ── */
+.legendList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  transition: background var(--transition-fast);
+}
+
+.legendActive {
+  background: var(--imperial-purple-glow);
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legendName {
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.legendLock {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--color-warning-bg, #FFF3CD);
+  color: var(--forge-amber);
+  border: 1px solid var(--forge-amber-light, #B8860B40);
+}
+
+.legendTab {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--imperial-purple-glow, rgba(78, 11, 89, 0.1));
+  color: var(--imperial-purple);
+  border: 1px solid var(--imperial-purple-light, rgba(78, 11, 89, 0.2));
+  white-space: nowrap;
+}
+
+/* ── Chat log ── */
+.chatLog {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.chatEmpty {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding: 16px 8px;
+  line-height: 1.5;
+}
+
+.chatMsg {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.chat_system {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  font-size: 10px;
+}
+
+.chat_npc, .chat_pillar {
+  background: var(--color-bg);
+  border-left: 2px solid var(--imperial-purple);
+}
+
+.chat_player {
+  background: var(--imperial-purple-glow);
+  border-left: 2px solid var(--oxidized-bronze);
+}
+
+.chatName {
+  font-weight: 700;
+  font-size: 10px;
+  display: block;
+  margin-bottom: 1px;
+  color: var(--imperial-purple);
+}
+
+.chat_player .chatName {
+  color: var(--oxidized-bronze);
+}
+
+.chatText {
+  color: var(--color-text);
+}
+
+.chat_system .chatText {
+  color: var(--color-text-tertiary);
+}
+
+/* ── Chat input ── */
+.chatForm {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.chatInput {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.chatInput:focus {
+  border-color: var(--imperial-purple);
+}
+
+.chatInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chatSend {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--imperial-purple);
+  background: var(--imperial-purple-glow);
+  color: var(--imperial-purple);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.chatSend:hover:not(:disabled) {
+  background: var(--imperial-purple);
+  color: white;
+}
+
+.chatSend:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .sidebar > * {
+    flex: 1 1 auto;
+    min-width: 200px;
+  }
+  .chatLog {
+    max-height: 160px;
+  }
+}

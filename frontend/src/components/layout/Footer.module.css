@@ -1,0 +1,36 @@
+.footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--marble-cream);
+}
+
+.edictum {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--imperial-purple);
+  flex-shrink: 0;
+}
+
+.text {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  line-height: 1.5;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+}

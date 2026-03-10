@@ -1,0 +1,10 @@
+.container {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}

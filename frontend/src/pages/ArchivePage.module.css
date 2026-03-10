@@ -1,0 +1,21 @@
+/* ── The Archive Page ── */
+
+.loading { color: var(--color-text-secondary); padding: 40px; text-align: center; }
+.sectionTitle { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+
+/* Health header */
+.healthHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.healthBadge { font-size: 13px; font-weight: 700; padding: 6px 14px; border-radius: 8px; }
+.calibrateBtn { padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--imperial-purple-glow); color: var(--imperial-purple); border: 1px solid var(--imperial-purple); transition: all var(--transition-fast); }
+.calibrateBtn:hover:not(:disabled) { background: var(--imperial-purple); color: #fff; }
+.calibrateBtn:disabled { opacity: 0.5; cursor: wait; }
+
+/* Period selector */
+.periodSelector { display: flex; gap: 8px; align-items: center; }
+.periodBtn { padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-mono); background: var(--color-bg-card); border: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); transition: all var(--transition-fast); }
+.periodActive { background: var(--imperial-purple-glow); border-color: var(--imperial-purple); color: var(--imperial-purple); }
+
+/* Weight history table */
+.whTable { width: 100%; border-collapse: collapse; font-size: 11px; }
+.whTable th { text-align: left; padding: 6px 8px; color: var(--color-text-secondary); font-weight: 600; border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.whTable td { padding: 6px 8px; font-family: var(--font-mono); font-weight: 500; }
