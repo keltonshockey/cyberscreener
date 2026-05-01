@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core.scanner import run_scan, ALL_TICKERS
 from db.models import init_db, save_scan, get_scan_count, get_open_plays, close_play, get_nearest_price
 try:
-    from intel.notifier import notify_momentum_digest
+    from intel.notifier import notify_momentum_digest, notify_top_plays_digest
     NOTIFIER_AVAILABLE = True
 except ImportError:
     NOTIFIER_AVAILABLE = False
@@ -66,6 +66,15 @@ def run_scheduled_scan():
                     notify_momentum_digest(momentum_events)
                 except Exception as ne:
                     logger.warning(f"Momentum notification failed: {ne}")
+
+        # Morning digest: send top plays once per day at first scan after 9:30 AM ET
+        now = datetime.now()
+        if NOTIFIER_AVAILABLE and now.hour == 9 and now.minute >= 30:
+            try:
+                notify_top_plays_digest(results)
+                logger.info("📧 Morning digest sent")
+            except Exception as de:
+                logger.warning(f"Morning digest failed: {de}")
     else:
         logger.error("❌ Scan failed — no results returned.")
 

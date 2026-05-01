@@ -203,6 +203,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_scores_ticker_scan ON scores(ticker, scan_id DESC);
         CREATE INDEX IF NOT EXISTS idx_prices_ticker_date ON prices(ticker, date);
         CREATE INDEX IF NOT EXISTS idx_signals_scan ON signals(scan_id);
+        CREATE INDEX IF NOT EXISTS idx_scans_timestamp ON scans(timestamp);
 
         -- Watchlist: custom tickers added by the user
         CREATE TABLE IF NOT EXISTS watchlist (
@@ -409,12 +410,14 @@ def get_all_scores_for_backtest(days=180):
     """Get all score records with timestamps for backtesting."""
     conn = get_db()
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    # Filter by scan_id range — uses idx_scores_scan + idx_scans_timestamp,
+    # avoids full-table join on 400K+ rows
     rows = conn.execute("""
         SELECT s.*, sc.timestamp as scan_date
         FROM scores s
         JOIN scans sc ON s.scan_id = sc.id
-        WHERE sc.timestamp >= ?
-        ORDER BY sc.timestamp ASC
+        WHERE s.scan_id >= (SELECT COALESCE(MIN(id), 0) FROM scans WHERE timestamp >= ?)
+        ORDER BY s.scan_id ASC
     """, (cutoff,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]

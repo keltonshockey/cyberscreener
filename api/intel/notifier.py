@@ -214,6 +214,67 @@ def notify_high_rc_play(ticker: str, play: dict, rc_score: int) -> bool:
     return _send(subject, body)
 
 
+def notify_top_plays_digest(scores: list, top_n: int = 10) -> bool:
+    """
+    Send a morning digest of top plays by combined conviction score.
+    scores = list of score dicts from run_scan() results.
+    Deduped to once per calendar day.
+    """
+    if not scores:
+        return False
+
+    sentinel = "morning_digest"
+    if not _is_fresh("__digest__", sentinel):
+        return False
+
+    def combined(s):
+        return (s.get("opt_score") or 0) * 0.6 + (s.get("lt_score") or 0) * 0.4
+
+    ranked = sorted(
+        [s for s in scores if (s.get("opt_score") or 0) >= 40 and (s.get("lt_score") or 0) >= 40],
+        key=combined,
+        reverse=True,
+    )[:top_n]
+
+    if not ranked:
+        return False
+
+    def score_color(v):
+        if v >= 70: return "#34c759"
+        if v >= 50: return "#ff9500"
+        return "#ff3b30"
+
+    rows_html = "".join(
+        f'<tr style="border-bottom:1px solid #f0f0f0">'
+        f'<td style="padding:9px 12px;font-weight:700;font-family:monospace;font-size:14px">{s["ticker"]}</td>'
+        f'<td style="padding:9px 12px;font-size:13px;color:#444">${s.get("price") or 0:.2f}</td>'
+        f'<td style="padding:9px 12px;font-weight:700;color:{score_color(combined(s))}">{combined(s):.1f}</td>'
+        f'<td style="padding:9px 12px;color:{score_color(s.get("lt_score") or 0)}">{s.get("lt_score") or 0:.0f}</td>'
+        f'<td style="padding:9px 12px;color:{score_color(s.get("opt_score") or 0)}">{s.get("opt_score") or 0:.0f}</td>'
+        f'</tr>'
+        for s in ranked
+    )
+
+    thead = (
+        '<thead><tr style="background:#f5f5f7;font-size:12px;color:#86868b">'
+        '<th style="padding:8px 12px;text-align:left">Ticker</th>'
+        '<th style="padding:8px 12px;text-align:left">Price</th>'
+        '<th style="padding:8px 12px;text-align:left">Conviction</th>'
+        '<th style="padding:8px 12px;text-align:left">LT</th>'
+        '<th style="padding:8px 12px;text-align:left">Opt</th>'
+        '</tr></thead>'
+    )
+
+    body = _html_header("Morning Digest")
+    body += f'<p style="font-size:14px;margin-bottom:16px">Top <b>{len(ranked)}</b> plays by conviction as of market open:</p>'
+    body += f'<table style="width:100%;border-collapse:collapse">{thead}<tbody>{rows_html}</tbody></table>'
+    body += f'<p style="font-size:12px;color:#86868b;margin-top:16px">View full rankings at <a href="https://quaest.tech/pactum">quaest.tech/pactum</a></p>'
+    body += _html_footer()
+
+    subject = f"Augur Morning: {ranked[0]['ticker']}, {ranked[1]['ticker']}, {ranked[2]['ticker']}... ({len(ranked)} plays)"
+    return _send(subject, body)
+
+
 def test_email() -> bool:
     """Send a test email to verify SendGrid config is working."""
     body = _html_header("Test Email")
