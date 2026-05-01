@@ -1221,14 +1221,9 @@ def get_latest_scores(limit: int = Query(100, ge=1, le=600)):
         return _latest_scores_cache["data"]
 
     rows = conn.execute("""
-        SELECT s.*
-        FROM scores s
-        INNER JOIN (
-            SELECT ticker, MAX(scan_id) AS max_scan_id
-            FROM scores
-            GROUP BY ticker
-        ) latest ON s.ticker = latest.ticker AND s.scan_id = latest.max_scan_id
-        ORDER BY s.lt_score DESC
+        SELECT * FROM scores
+        WHERE scan_id = (SELECT MAX(id) FROM scans)
+        ORDER BY lt_score DESC
         LIMIT ?
     """, (limit,)).fetchall()
     conn.close()
