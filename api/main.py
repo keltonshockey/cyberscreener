@@ -1398,23 +1398,120 @@ def get_chart_data(ticker: str, days: int = Query(90, ge=30, le=365)):
     return {"ticker": t, "prices": prices_out, "signals": signals}
 
 
-# ─── Backtest ───
+# ─── Backtest — background-compute + file cache ───
+#
+# Backtest loads the full scores table (400K+ rows from a 1.3 GB DB) which
+# takes 60-120s on this droplet. All endpoints use a shared file cache so the
+# heavy computation runs once and results are served instantly on subsequent
+# requests. Cache TTL is 2 hours; a background thread recomputes on miss.
+
+import threading as _threading
+import json as _json
+import time as _btime
+
+_BACKTEST_CACHE_FILE = "/tmp/quaest_backtest_cache.json"
+_BACKTEST_TTL = 7200  # 2 hours
+_backtest_lock = _threading.Lock()
+_backtest_computing = False
+
+
+def _backtest_cache_fresh():
+    """Return cached backtest result if it exists and is within TTL, else None."""
+    try:
+        import os
+        if not os.path.exists(_BACKTEST_CACHE_FILE):
+            return None
+        age = _btime.time() - os.path.getmtime(_BACKTEST_CACHE_FILE)
+        if age > _BACKTEST_TTL:
+            return None
+        with open(_BACKTEST_CACHE_FILE) as f:
+            return _json.load(f)
+    except Exception:
+        return None
+
+
+def _backtest_compute_and_cache(days, forward_period):
+    """Run all backtest analyses and write results to the cache file."""
+    global _backtest_computing
+    try:
+        result = {
+            "computed_at": _btime.strftime("%Y-%m-%d %H:%M:%S"),
+            "days": days,
+            "forward_period": forward_period,
+            "score_vs_returns": run_full_backtest(days, forward_period),
+            "layer_attribution": backtest_layer_attribution(days, forward_period),
+            "earnings_timing": backtest_earnings_timing(days),
+        }
+        with open(_BACKTEST_CACHE_FILE, "w") as f:
+            _json.dump(result, f)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Backtest cache compute failed: {e}")
+    finally:
+        _backtest_computing = False
+
+
+def _maybe_start_backtest(days, forward_period):
+    """Start background backtest computation if not already running."""
+    global _backtest_computing
+    with _backtest_lock:
+        if _backtest_computing:
+            return
+        _backtest_computing = True
+    t = _threading.Thread(target=_backtest_compute_and_cache, args=(days, forward_period), daemon=True)
+    t.start()
+
 
 @app.get("/backtest")
-def run_backtest_all(days: int = Query(180, ge=30, le=365), forward_period: int = Query(30, ge=7, le=90)):
-    return run_full_backtest(days, forward_period)
+def run_backtest_all(days: int = Query(60, ge=30, le=365), forward_period: int = Query(14, ge=7, le=90)):
+    cached = _backtest_cache_fresh()
+    if cached:
+        return cached.get("score_vs_returns", cached)
+    _maybe_start_backtest(days, forward_period)
+    return {"status": "computing", "message": "Backtest is running in the background. Retry in 60-90 seconds.", "retry_after": 60}
+
 
 @app.get("/backtest/score-vs-returns")
-def backtest_scores(days: int = Query(180, ge=30, le=365), forward_period: int = Query(30, ge=7, le=90)):
-    return backtest_score_vs_returns(days, forward_period)
+def backtest_scores(days: int = Query(60, ge=30, le=365), forward_period: int = Query(14, ge=7, le=90)):
+    cached = _backtest_cache_fresh()
+    if cached:
+        return cached.get("score_vs_returns", {})
+    _maybe_start_backtest(days, forward_period)
+    return {"status": "computing", "message": "Backtest is running. Retry in 60-90 seconds.", "retry_after": 60}
+
 
 @app.get("/backtest/layer-attribution")
-def backtest_layers(days: int = Query(180, ge=30, le=365), forward_period: int = Query(30, ge=7, le=90)):
-    return backtest_layer_attribution(days, forward_period)
+def backtest_layers(days: int = Query(60, ge=30, le=365), forward_period: int = Query(14, ge=7, le=90)):
+    cached = _backtest_cache_fresh()
+    if cached:
+        return cached.get("layer_attribution", {})
+    _maybe_start_backtest(days, forward_period)
+    return {"status": "computing", "message": "Backtest is running. Retry in 60-90 seconds.", "retry_after": 60}
+
 
 @app.get("/backtest/earnings-timing")
-def backtest_earnings(days: int = Query(180, ge=30, le=365)):
-    return backtest_earnings_timing(days)
+def backtest_earnings(days: int = Query(60, ge=30, le=365)):
+    cached = _backtest_cache_fresh()
+    if cached:
+        return cached.get("earnings_timing", {})
+    _maybe_start_backtest(days, 14)
+    return {"status": "computing", "message": "Backtest is running. Retry in 60-90 seconds.", "retry_after": 60}
+
+
+@app.post("/backtest/refresh")
+def refresh_backtest(
+    days: int = Query(60, ge=30, le=365),
+    forward_period: int = Query(14, ge=7, le=90),
+    admin: dict = Depends(require_admin),
+):
+    """Force-invalidate the backtest cache and recompute. Admin only."""
+    import os
+    try:
+        os.remove(_BACKTEST_CACHE_FILE)
+    except FileNotFoundError:
+        pass
+    _maybe_start_backtest(days, forward_period)
+    return {"status": "computing", "message": "Backtest cache cleared. Recomputing in background.", "retry_after": 60}
 
 
 # ─── Self-Calibration ───

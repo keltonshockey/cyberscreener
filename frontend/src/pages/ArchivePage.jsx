@@ -29,7 +29,14 @@ export function ArchivePage({ backtest: init, tz }) {
   const loadBT = useCallback(async (fwd) => {
     setLoading(true);
     setError(false);
-    const d = await fetchBacktest(180, fwd);
+    const d = await fetchBacktest(60, fwd);
+    if (d && d.status === 'computing') {
+      // Backend is warming the cache — poll every 30s
+      setLoading(false);
+      setError('computing');
+      setTimeout(() => loadBT(fwd), 30000);
+      return;
+    }
     if (d) setData(d);
     else setError(true);
     setLoading(false);
@@ -61,11 +68,18 @@ export function ArchivePage({ backtest: init, tz }) {
   if (loading) return <div className={styles.loading}>Running backtest…</div>;
   if (!data) return (
     <Card style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 36, marginBottom: 12 }}>{error ? '⚠️' : '📊'}</div>
-      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: error ? 12 : 0 }}>
-        {error ? 'Backtest unavailable — server may be busy' : 'Loading backtest…'}
+      <div style={{ fontSize: 36, marginBottom: 12 }}>{error === 'computing' ? '⏳' : error ? '⚠️' : '📊'}</div>
+      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>
+        {error === 'computing'
+          ? 'Backtest computing in background…'
+          : error ? 'Backtest unavailable — server may be busy' : 'Loading backtest…'}
       </div>
-      {error && (
+      {error === 'computing' && (
+        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+          First run takes 60–90 seconds. Page will auto-refresh.
+        </div>
+      )}
+      {error && error !== 'computing' && (
         <button onClick={() => loadBT(period)} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
           ↻ Retry
         </button>
