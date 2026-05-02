@@ -14,7 +14,8 @@ import yfinance as yf
 
 from fastapi import APIRouter, Query, HTTPException
 
-from db.models import get_db, get_weights
+from db.models import get_db
+from core.scanner import get_weights
 from core.universe import (
     ALL_CYBER_TICKERS, ALL_ENERGY_TICKERS, ALL_DEFENSE_TICKERS, ALL_BROAD_TICKERS,
 )
