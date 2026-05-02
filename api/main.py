@@ -1182,6 +1182,15 @@ def _compute_rc(play: dict, ticker_data: dict) -> dict:
 
 _plays_cache = {}
 _plays_status = {}
+_PLAYS_CACHE_MAX = 200  # prevent unbounded memory growth
+
+def _evict_plays_cache():
+    """Drop the oldest half of entries when cache exceeds max size."""
+    if len(_plays_cache) > _PLAYS_CACHE_MAX:
+        sorted_keys = sorted(_plays_cache, key=lambda k: _plays_cache[k].get("timestamp", ""), reverse=False)
+        for k in sorted_keys[:len(sorted_keys) // 2]:
+            _plays_cache.pop(k, None)
+            _plays_status.pop(k, None)
 
 def _fetch_plays_background(ticker):
     global _plays_status, _plays_cache
@@ -1263,6 +1272,7 @@ def _fetch_plays_background(ticker):
         }
         _plays_cache[ticker] = {"data": result, "timestamp": datetime.now().isoformat()}
         _plays_status[ticker] = {"running": False, "message": "done", "result": result}
+        _evict_plays_cache()
     except Exception as e:
         _plays_status[ticker] = {"running": False, "message": "done",
                                  "result": {"ticker": ticker, "plays": [], "error": str(e)}}
@@ -1397,6 +1407,7 @@ def get_plays_for_ticker(ticker: str):
         }
         # Cache for 90s so subsequent requests don't re-compute
         _plays_cache[ticker] = {"data": result, "timestamp": datetime.now().isoformat()}
+        _evict_plays_cache()
         return result
     except Exception as e:
         return {"ticker": ticker, "plays": [], "error": str(e)}

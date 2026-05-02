@@ -201,6 +201,10 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_scores_scan ON scores(scan_id);
         CREATE INDEX IF NOT EXISTS idx_scores_ticker ON scores(ticker);
         CREATE INDEX IF NOT EXISTS idx_scores_ticker_scan ON scores(ticker, scan_id DESC);
+        CREATE INDEX IF NOT EXISTS idx_scores_lt_score ON scores(lt_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_scores_opt_score ON scores(opt_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_scores_scan_lt ON scores(scan_id, lt_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_scores_scan_opt ON scores(scan_id, opt_score DESC);
         CREATE INDEX IF NOT EXISTS idx_prices_ticker_date ON prices(ticker, date);
         CREATE INDEX IF NOT EXISTS idx_signals_scan ON signals(scan_id);
         CREATE INDEX IF NOT EXISTS idx_scans_timestamp ON scans(timestamp);

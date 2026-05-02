@@ -20,8 +20,8 @@ export function RegisterPage({ onSwitchToLogin, onSuccess }) {
       setError('All fields are required');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
     if (!oathAccepted) {
@@ -76,7 +76,7 @@ export function RegisterPage({ onSwitchToLogin, onSuccess }) {
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Min. 6 characters"
+              placeholder="Min. 8 characters"
               autoComplete="new-password"
             />
           </div>
