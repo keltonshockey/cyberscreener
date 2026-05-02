@@ -282,6 +282,15 @@ try:
 except Exception:
     pass
 
+# Warm backtest cache in background at startup so Archive page loads instantly
+import threading as _startup_threading
+def _warm_backtest_on_startup():
+    try:
+        _maybe_start_backtest(60, 14)
+    except Exception:
+        pass
+_startup_threading.Thread(target=_warm_backtest_on_startup, daemon=True).start()
+
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 

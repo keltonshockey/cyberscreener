@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.scanner import run_scan, ALL_TICKERS
-from db.models import init_db, save_scan, get_scan_count, get_open_plays, close_play, get_nearest_price
+from db.models import init_db, save_scan, get_scan_count, get_open_plays, close_play, get_nearest_price, get_db
 try:
     from intel.notifier import notify_momentum_digest, notify_top_plays_digest
     NOTIFIER_AVAILABLE = True
@@ -125,6 +125,51 @@ def _check_play_outcomes():
         logger.info(f"📊 Play outcome check: closed {closed} expired plays")
 
 
+def _prune_and_checkpoint():
+    """
+    Nightly maintenance: delete scores older than 6 months (keep weekly snapshots),
+    then run WAL checkpoint to reclaim disk space.
+    At ~100MB/month growth, without pruning the 1GB droplet fills by August.
+    """
+    conn = get_db()
+    # Find the scan_id cutoff: last scan before the 6-month window
+    cutoff_row = conn.execute(
+        "SELECT MAX(id) as id FROM scans WHERE timestamp < date('now', '-180 days')"
+    ).fetchone()
+    cutoff_id = cutoff_row["id"] if cutoff_row and cutoff_row["id"] else None
+
+    if cutoff_id:
+        # Keep one scan per week (the last scan of each ISO week) beyond the cutoff
+        weekly_keepers = conn.execute("""
+            SELECT MAX(id) as id FROM scans
+            WHERE id <= ? AND timestamp < date('now', '-180 days')
+            GROUP BY strftime('%Y-%W', timestamp)
+        """, (cutoff_id,)).fetchall()
+        keeper_ids = {r["id"] for r in weekly_keepers if r["id"]}
+
+        # Delete scores from old scans that aren't weekly keepers
+        if keeper_ids:
+            placeholders = ",".join("?" * len(keeper_ids))
+            deleted = conn.execute(
+                f"DELETE FROM scores WHERE scan_id <= ? AND scan_id NOT IN ({placeholders})",
+                (cutoff_id, *keeper_ids)
+            ).rowcount
+        else:
+            deleted = conn.execute(
+                "DELETE FROM scores WHERE scan_id <= ?", (cutoff_id,)
+            ).rowcount
+
+        conn.commit()
+        logger.info(f"🗑️  Pruned {deleted} old score rows (kept weekly snapshots)")
+    else:
+        logger.info("🗑️  Prune: no records old enough to prune yet")
+
+    # WAL checkpoint — merges WAL into main DB file and truncates it
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.close()
+    logger.info("✅ WAL checkpoint complete")
+
+
 def is_market_hours():
     """Check if we're in a reasonable window for scanning (weekday, not too early/late)."""
     now = datetime.now()
@@ -143,6 +188,7 @@ def daemon_loop(interval_seconds=3600):
     logger.info(f"Tracking {len(ALL_TICKERS)} tickers")
 
     _last_outcome_check_day: str = ""
+    _last_prune_day: str = ""
 
     while True:
         try:
@@ -151,15 +197,24 @@ def daemon_loop(interval_seconds=3600):
             else:
                 logger.info("Outside market hours, skipping scan.")
 
-            # P2: Nightly play outcome check at ~4 PM (market close)
             now = datetime.now()
             today_str = now.strftime("%Y-%m-%d")
+
+            # Nightly play outcome check at ~4 PM (market close)
             if now.hour == 16 and _last_outcome_check_day != today_str:
                 try:
                     _last_outcome_check_day = today_str
                     _check_play_outcomes()
                 except Exception as oc_err:
                     logger.error(f"Outcome check error: {oc_err}")
+
+            # Nightly DB prune + WAL checkpoint at ~2 AM — keeps DB under control
+            if now.hour == 2 and _last_prune_day != today_str:
+                try:
+                    _last_prune_day = today_str
+                    _prune_and_checkpoint()
+                except Exception as pe:
+                    logger.error(f"Prune/checkpoint error: {pe}")
 
         except Exception as e:
             logger.error(f"Scan error: {e}")

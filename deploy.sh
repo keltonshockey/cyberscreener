@@ -1,55 +1,47 @@
 #!/bin/bash
 # ── QUAEST.TECH Deploy Script ──
-# Deploys to DigitalOcean droplet via Docker
-# Usage: ./deploy.sh [user@host]
+# Builds frontend locally, rsyncs dist/ to droplet, restarts backend.
+# Avoids building on the 1GB droplet (28-min OOM risk with Vite).
 #
-# Prerequisites on the droplet:
-#   - Docker & Docker Compose installed
-#   - Nginx installed (reverse proxy to :8000)
-#   - SSL via certbot/Let's Encrypt for cyber.keltonshockey.com
+# Usage:
+#   ./deploy.sh            # full deploy (build + rsync + restart)
+#   ./deploy.sh --api-only # skip frontend build, just pull + restart backend
+#   ./deploy.sh --fe-only  # build + rsync frontend only, no backend restart
 
 set -euo pipefail
 
-# ── Config ──
-REMOTE="${1:-root@cyber.keltonshockey.com}"
+REMOTE="root@64.23.150.209"
 APP_DIR="/opt/cyberscreener"
-IMAGE_NAME="cyberscreener"
+FE_DIR="$APP_DIR/frontend/dist"
 
-echo "🚀 Deploying QUAEST.TECH to $REMOTE"
+MODE="${1:-}"
 
-# ── 1. Push latest code to GitHub ──
+echo "🚀 Deploying QUAEST.TECH → $REMOTE"
+
+# ── Push code to GitHub ──
 echo "📦 Pushing to GitHub..."
-git push origin main
+cd "$(dirname "$0")"
+git push github main
 
-# ── 2. Pull on server & rebuild ──
-echo "🔨 Building on server..."
-ssh "$REMOTE" bash -s "$APP_DIR" "$IMAGE_NAME" << 'DEPLOY_SCRIPT'
-APP_DIR="$1"
-IMAGE_NAME="$2"
+if [[ "$MODE" != "--api-only" ]]; then
+  # ── Build frontend locally ──
+  echo "🔨 Building frontend locally..."
+  cd frontend
+  npm run build
+  cd ..
 
-cd "$APP_DIR"
-git pull origin main
+  # ── Rsync dist/ to droplet ──
+  echo "📡 Syncing dist/ to droplet..."
+  rsync -az --delete frontend/dist/ "$REMOTE:$FE_DIR/"
+  echo "✅ Frontend synced"
+fi
 
-# Build the Docker image (multi-stage: builds frontend + API)
-docker build -t "$IMAGE_NAME" .
+if [[ "$MODE" != "--fe-only" ]]; then
+  # ── Pull latest code + restart backend ──
+  echo "🔄 Restarting backend..."
+  ssh "$REMOTE" "cd $APP_DIR && git pull origin main && systemctl restart cyberscreener.service cyberscreener-scheduler.service"
+  echo "✅ Backend restarted"
+fi
 
-# Stop old container, start new one
-docker stop "$IMAGE_NAME" 2>/dev/null || true
-docker rm "$IMAGE_NAME" 2>/dev/null || true
-
-docker run -d \
-  --name "$IMAGE_NAME" \
-  --restart unless-stopped \
-  -p 8000:8000 \
-  -v cyberscreener-data:/data/db \
-  --env-file .env \
-  "$IMAGE_NAME"
-
-# Prune old images
-docker image prune -f
-
-echo "✅ Container running:"
-docker ps --filter name="$IMAGE_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-DEPLOY_SCRIPT
-
-echo "✅ Deployed to https://cyber.keltonshockey.com"
+echo ""
+echo "✅ Deployed → https://quaest.tech"
