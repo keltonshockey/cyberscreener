@@ -18,6 +18,9 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA cache_size=-32768")   # 32MB page cache (default is 2MB but mmap balloons RSS)
+    conn.execute("PRAGMA mmap_size=0")         # disable mmap — prevents ~700MB RSS growth on 1GB droplet
+    conn.execute("PRAGMA temp_store=MEMORY")
     return conn
 
 
