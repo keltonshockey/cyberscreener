@@ -176,15 +176,8 @@ try:
 except Exception:
     pass
 
-# Warm backtest cache in background at startup so Archive page loads instantly
-import threading as _startup_threading
-def _warm_backtest_on_startup():
-    try:
-        from routers.backtest import start_compute
-        start_compute(60, 14)
-    except Exception:
-        pass
-_startup_threading.Thread(target=_warm_backtest_on_startup, daemon=True).start()
+# Backtest warmup intentionally deferred to first request — loading 380K scores at
+# startup exhausts RAM on a 1GB droplet and triggers the OOM killer.
 
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
