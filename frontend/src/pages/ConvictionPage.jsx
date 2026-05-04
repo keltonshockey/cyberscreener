@@ -17,7 +17,6 @@ import { InteractiveScoreChart } from '../components/charts/InteractiveScoreChar
 import { InteractivePriceChart } from '../components/charts/InteractivePriceChart';
 import { fetchScoreHistory, fetchSignals, fetchWatchlist, addWatchlistTicker, removeWatchlistTicker } from '../api/endpoints';
 import { ltBreakdown, optBreakdown } from '../utils/scoring';
-import { fmtDateOnly } from '../utils/formatters';
 import styles from './ConvictionPage.module.css';
 
 const ALL_FILTERS = [
@@ -95,13 +94,20 @@ export function ConvictionPage({ latest }) {
   const lr = sel ? results.find(r => r.ticker === sel) : null;
   const L = hist?.history?.length ? hist.history[hist.history.length - 1] : null;
   const F = hist?.history?.length ? hist.history[0] : null;
-  const cd = hist?.history?.map(h => ({
-    date: fmtDateOnly(h.timestamp),
-    lt_score: h.lt_score,
-    opt_score: h.opt_score,
-    price: h.price,
-    rsi: h.rsi,
-  })) || [];
+
+  // Build chart data: use raw ISO date portion (yyyy-mm-dd) required by lightweight-charts.
+  // Deduplicate by day (keep latest per day) to avoid duplicate-time errors.
+  const cd = (() => {
+    if (!hist?.history?.length) return [];
+    const byDay = new Map();
+    for (const h of hist.history) {
+      if (!h.timestamp) continue;
+      const day = h.timestamp.split('T')[0];
+      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      byDay.set(day, { date: day, lt_score: h.lt_score, opt_score: h.opt_score, price: h.price, rsi: h.rsi });
+    }
+    return Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
+  })();
 
   const sortFn = SORT_OPTIONS.find(s => s.key === sortKey)?.fn || SORT_OPTIONS[0].fn;
   const filtered = results
