@@ -540,10 +540,12 @@ def _compute_new_weights(current_weights, attributions, default_weights, compone
     else:
         normalized = dict(default_weights)
 
+    # Clamp: no component below 5% or above 40% — prevents runaway calibration
+    # (a single high-correlation run can compound weights to absurd levels without this)
     for k in normalized:
-        if normalized[k] < 3:
-            normalized[k] = 3.0
+        normalized[k] = max(5.0, min(40.0, normalized[k]))
 
+    # Renormalize after clamping so weights still sum to 100
     total = sum(normalized.values())
     normalized = {k: round(v / total * 100, 1) for k, v in normalized.items()}
 

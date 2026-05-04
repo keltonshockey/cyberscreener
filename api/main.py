@@ -619,6 +619,123 @@ def health():
     return {"status": "ok", "version": "3.0.0", "scans": get_scan_count()}
 
 
+@app.get("/health/detailed")
+def health_detailed():
+    """System health check for the status dashboard widget."""
+    import os, time
+    from datetime import timezone
+    checks = {}
+    overall = "healthy"
+
+    # ── Scanner freshness ──
+    try:
+        conn = get_db()
+        row = conn.execute(
+            "SELECT timestamp, tickers_scanned FROM scans ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        conn.close()
+        if row:
+            last_ts = datetime.fromisoformat(row["timestamp"])
+            # Make naive datetimes UTC-aware for comparison
+            if last_ts.tzinfo is None:
+                last_ts = last_ts.replace(tzinfo=timezone.utc)
+            age_min = (datetime.now(timezone.utc) - last_ts).total_seconds() / 60
+            # Market hours: expect scan within 45 min; off-hours: 16 hr
+            from datetime import time as dtime
+            now_utc = datetime.now(timezone.utc)
+            market_open = dtime(13, 30)   # 9:30 ET = 13:30 UTC
+            market_close = dtime(20, 0)   # 4:00 ET = 20:00 UTC
+            is_market_hours = market_open <= now_utc.time() <= market_close
+            threshold = 45 if is_market_hours else 960  # 16 hr off-hours
+            status = "ok" if age_min <= threshold else ("warn" if age_min <= threshold * 2 else "fail")
+            if status != "ok":
+                overall = "degraded" if status == "warn" else "critical"
+            checks["scanner"] = {
+                "status": status,
+                "last_scan_ago_min": round(age_min, 1),
+                "tickers_scanned": row["tickers_scanned"],
+                "message": f"Last scan {round(age_min)} min ago ({row['tickers_scanned']} tickers)",
+            }
+        else:
+            overall = "critical"
+            checks["scanner"] = {"status": "fail", "message": "No scans found in database"}
+    except Exception as e:
+        overall = "critical"
+        checks["scanner"] = {"status": "fail", "message": str(e)}
+
+    # ── Scoring coverage ──
+    try:
+        conn = get_db()
+        row = conn.execute("""
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN lt_score IS NOT NULL AND opt_score IS NOT NULL THEN 1 ELSE 0 END) as valid
+            FROM scores WHERE scan_id = (SELECT MAX(id) FROM scans)
+        """).fetchone()
+        conn.close()
+        total = row["total"] or 0
+        valid = row["valid"] or 0
+        pct = round(valid / total * 100, 1) if total > 0 else 0
+        status = "ok" if pct >= 95 else ("warn" if pct >= 80 else "fail")
+        if status == "fail" and overall == "healthy":
+            overall = "degraded"
+        checks["coverage"] = {
+            "status": status,
+            "valid_tickers": valid,
+            "total_tickers": total,
+            "coverage_pct": pct,
+            "message": f"{valid}/{total} tickers scored ({pct}%)",
+        }
+    except Exception as e:
+        checks["coverage"] = {"status": "warn", "message": str(e)}
+
+    # ── Weight sanity ──
+    try:
+        weights = get_weights()
+        opt_w = weights.get("opt", {})
+        max_comp = max(opt_w.values()) if opt_w else 0
+        max_name = max(opt_w, key=opt_w.get) if opt_w else "?"
+        lt_w = weights.get("lt", {})
+        max_lt = max(lt_w.values()) if lt_w else 0
+        status = "ok"
+        msg = "Weights within normal bounds"
+        if max_comp > 40 or max_lt > 50:
+            status = "warn"
+            msg = f"Weight drift detected — {max_name} at {max_comp}% opt / {max_lt}% LT"
+            if overall == "healthy":
+                overall = "degraded"
+        checks["weights"] = {
+            "status": status,
+            "max_opt_component": max_comp,
+            "max_opt_name": max_name,
+            "max_lt_component": max_lt,
+            "message": msg,
+        }
+    except Exception as e:
+        checks["weights"] = {"status": "warn", "message": str(e)}
+
+    # ── DB size ──
+    try:
+        db_path = os.environ.get("CYBERSCREENER_DB", "/app/data/cyberscreener.db")
+        size_bytes = os.path.getsize(db_path)
+        size_gb = round(size_bytes / 1e9, 2)
+        status = "ok" if size_gb < 1.8 else ("warn" if size_gb < 2.5 else "fail")
+        if status == "warn" and overall == "healthy":
+            overall = "degraded"
+        checks["database"] = {
+            "status": status,
+            "size_gb": size_gb,
+            "message": f"DB {size_gb} GB" + (" — approaching limit, prune soon" if status == "warn" else ""),
+        }
+    except Exception as e:
+        checks["database"] = {"status": "warn", "message": str(e)}
+
+    return {
+        "status": overall,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": checks,
+    }
+
+
 # ─── Backfill ───
 _backfill_status = {"running": False, "message": "idle"}
 

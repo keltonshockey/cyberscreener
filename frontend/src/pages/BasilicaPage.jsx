@@ -12,6 +12,7 @@ import { ScoreBar } from '../components/ui/ScoreBar';
 import { Badge } from '../components/ui/Badge';
 import { SvgBarChart } from '../components/charts/SvgBarChart';
 import { fetchMarketIndices, fetchMomentumSignals, fetchKillerPlays, sendKillerAlerts } from '../api/endpoints';
+import { SystemHealthWidget } from '../components/ui/SystemHealthWidget';
 import { fmtTS } from '../utils/formatters';
 import styles from './BasilicaPage.module.css';
 
@@ -242,6 +243,9 @@ export function BasilicaPage({ stats, latest, tz }) {
         <Metric label="Earnings Soon" value={earningsSoon} color={earningsSoon > 0 ? 'var(--imperial-purple)' : 'var(--color-text-secondary)'} sub="Within 14d" />
         <Metric label="Last Scan" value={stats?.last_scan ? fmtTS(stats.last_scan, tz) : '—'} />
       </div>
+
+      {/* System Health */}
+      <SystemHealthWidget />
 
       {/* Killer Plays */}
       <Card style={{ padding: 20 }}>
