@@ -1228,12 +1228,12 @@ def find_best_strike(chains, option_type, expiry, price, target_delta="atm", req
     if not filtered:
         return None
 
-    # Apply liquidity filter
+    # Apply liquidity filter — no fallback; illiquid chains produce no play
     if require_liquidity:
         liquid = [c for c in filtered if _passes_liquidity_filter(c)]
-        # Fall back to unfiltered if nothing passes (better than no result)
-        if liquid:
-            filtered = liquid
+        if not liquid:
+            return None
+        filtered = liquid
 
     if target_delta == "atm":
         return min(filtered, key=lambda x: abs(x["strike"] - price))
@@ -1305,8 +1305,13 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
     # Determine directional bias
     bullish_signals = 0
     bearish_signals = 0
-    if rsi and rsi < 35: bullish_signals += 2
-    elif rsi and rsi > 70: bearish_signals += 1
+    # RSI: symmetric treatment — deeply oversold/overbought both get strong signals
+    if rsi and rsi < 25:    bullish_signals += 3  # Deeply oversold
+    elif rsi and rsi < 35:  bullish_signals += 2
+    elif rsi and rsi < 40:  bullish_signals += 1
+    elif rsi and rsi > 80:  bearish_signals += 3  # Extremely overbought
+    elif rsi and rsi > 70:  bearish_signals += 2  # Overbought
+    elif rsi and rsi > 65:  bearish_signals += 1
     if price_above_sma20: bullish_signals += 1
     if price_above_sma50: bullish_signals += 1
     if perf_3m and perf_3m > 10: bullish_signals += 1
@@ -1314,10 +1319,12 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
 
     is_earnings_play = days_to_earnings is not None and 1 <= days_to_earnings <= 30
     is_high_iv = (iv_30d or 0) > 50
+    is_extreme_iv = (iv_30d or 0) > 80  # Buying premium is poor value at this IV
     bias = "bullish" if bullish_signals > bearish_signals else "bearish" if bearish_signals > bullish_signals else "neutral"
 
     # ── PLAY 1: Directional (Long Calls or Puts) ──
-    if bias == "bullish":
+    # Skip naked long premium when IV is extreme — the credit spread (Play 6) is better then
+    if bias == "bullish" and not is_extreme_iv:
         strike_opt = find_best_strike(chains, "call", expiry, price, "otm_near")
         if strike_opt:
             mid_price = (strike_opt["bid"] + strike_opt["ask"]) / 2 if strike_opt["ask"] > 0 else strike_opt["lastPrice"]
@@ -1343,7 +1350,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
                 "risk_notes": "Max loss limited to premium paid."
             })
 
-    elif bias == "bearish":
+    elif bias == "bearish" and not is_extreme_iv:
         strike_opt = find_best_strike(chains, "put", expiry, price, "otm_near")
         if strike_opt:
             mid_price = (strike_opt["bid"] + strike_opt["ask"]) / 2 if strike_opt["ask"] > 0 else strike_opt["lastPrice"]
