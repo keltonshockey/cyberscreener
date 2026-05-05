@@ -41,6 +41,21 @@
   line-height: 1;
 }
 
+.labelGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sub {
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  line-height: 1;
+}
+
 .scanBtn {
   padding: 6px 16px;
   border-radius: var(--radius-md);

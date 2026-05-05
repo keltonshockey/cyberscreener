@@ -396,6 +396,73 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
     }
 
 
+# ── Buy Zone ───────────────────────────────────────────────────────────────────
+
+@router.get("/buy-zone")
+def get_buy_zone(limit: int = Query(8, ge=1, le=15)):
+    """
+    Long-term value picks: strong fundamentals (LT score ≥ 60) + not overbought
+    (RSI ≤ 45) + no active threats. These are the cream-of-crop buy-and-hold
+    candidates from the latest scan.
+    """
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT s.ticker, s.price, s.lt_score, s.opt_score, s.rsi,
+               s.days_to_earnings, s.threat_score, s.outage_status,
+               s.breach_victim, s.sector, s.pct_from_52w_high, s.pe_ratio,
+               s.revenue_growth_pct, s.fcf_m, s.demand_signal
+        FROM scores s
+        INNER JOIN (
+            SELECT ticker, MAX(scan_id) AS max_scan_id
+            FROM scores GROUP BY ticker
+        ) latest ON s.ticker = latest.ticker AND s.scan_id = latest.max_scan_id
+        WHERE s.lt_score >= 60
+          AND (s.rsi IS NULL OR s.rsi <= 45)
+          AND (s.threat_score IS NULL OR s.threat_score >= 70)
+          AND (s.outage_status IS NULL OR s.outage_status NOT IN ('outage'))
+          AND (s.breach_victim IS NULL OR s.breach_victim = 0)
+        ORDER BY s.lt_score DESC
+        LIMIT ?
+    """, (limit * 2,)).fetchall()
+    conn.close()
+
+    results = []
+    for r in rows:
+        row = dict(r)
+        rsi = row.get("rsi") or 50
+        lt = row.get("lt_score") or 0
+        dte = row.get("days_to_earnings")
+
+        # Build a plain-English reason
+        if rsi <= 30:
+            entry_signal = "Oversold entry"
+        elif rsi <= 38:
+            entry_signal = "Near oversold"
+        else:
+            entry_signal = "Neutral RSI"
+
+        if dte and 5 <= dte <= 30:
+            row["catalyst"] = f"📅 Earnings {dte}d · {entry_signal}"
+        elif row.get("demand_signal"):
+            row["catalyst"] = f"🌋 Demand signal · {entry_signal}"
+        elif rsi <= 30:
+            row["catalyst"] = "📉 Oversold — strong LT value entry"
+        else:
+            row["catalyst"] = f"📊 Strong fundamentals · {entry_signal}"
+
+        row["combined_score"] = round((row.get("opt_score") or 0) * 0.6 + lt * 0.4, 1)
+        results.append(row)
+        if len(results) >= limit:
+            break
+
+    return {
+        "picks": results,
+        "total": len(results),
+        "criteria": "LT ≥ 60, RSI ≤ 45, no active threats",
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 # ── Inverse Plays ──────────────────────────────────────────────────────────────
 
 @router.get("/inverse-plays")

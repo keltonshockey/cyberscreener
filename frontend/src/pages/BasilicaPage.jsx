@@ -11,7 +11,7 @@ import { Metric } from '../components/ui/Metric';
 import { ScoreBar } from '../components/ui/ScoreBar';
 import { Badge } from '../components/ui/Badge';
 import { SvgBarChart } from '../components/charts/SvgBarChart';
-import { fetchMarketIndices, fetchMomentumSignals, fetchKillerPlays, sendKillerAlerts } from '../api/endpoints';
+import { fetchMarketIndices, fetchMomentumSignals, fetchKillerPlays, fetchBuyZone, sendKillerAlerts } from '../api/endpoints';
 import { SystemHealthWidget } from '../components/ui/SystemHealthWidget';
 import { fmtTS } from '../utils/formatters';
 import styles from './BasilicaPage.module.css';
@@ -52,7 +52,7 @@ function MarketBar() {
   );
 }
 
-function KillerPlaysWidget({ onSelectPlay, navigate }) {
+function KillerPlaysWidget({ navigate }) {
   const [plays, setPlays] = useState(null);
   const [alertSent, setAlertSent] = useState(false);
   const [alertMsg, setAlertMsg] = useState('');
@@ -66,7 +66,7 @@ function KillerPlaysWidget({ onSelectPlay, navigate }) {
     setTimeout(() => setAlertSent(false), 4000);
   };
 
-  if (!plays) return <div className={styles.loading}>Loading killer plays...</div>;
+  if (!plays) return <div className={styles.loading}>Loading…</div>;
 
   const items = plays.killer_plays || plays.plays || [];
   if (!items.length) return <div className={styles.loading}>No high-conviction plays found this cycle.</div>;
@@ -77,7 +77,7 @@ function KillerPlaysWidget({ onSelectPlay, navigate }) {
         <div>
           <h2 className={styles.sectionTitleLg} style={{ marginBottom: 2 }}>{'⚔️'} Killer Plays</h2>
           <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-            Top-conviction tickers: high combined score, no threats. Click to explore.
+            Top options opportunities — click to generate play
           </div>
         </div>
         <button className={styles.alertBtn} onClick={sendAlert} disabled={alertSent}>
@@ -89,7 +89,7 @@ function KillerPlaysWidget({ onSelectPlay, navigate }) {
           const combined = p.combined_score || Math.round((p.opt_score || 0) * 0.6 + (p.lt_score || 0) * 0.4);
           const dirColor = p.direction === 'bullish' ? 'var(--color-success)' : p.direction === 'bearish' ? 'var(--color-danger)' : 'var(--imperial-purple)';
           return (
-            <div key={i} className={styles.killerCard} onClick={() => navigate(`/ticker/${p.ticker}`)}>
+            <div key={i} className={styles.killerCard} onClick={() => navigate('/pactum', { state: { ticker: p.ticker } })}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                 <div className={styles.killerTicker}>{p.ticker}</div>
                 <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: dirColor }}>{combined}</div>
@@ -107,6 +107,48 @@ function KillerPlaysWidget({ onSelectPlay, navigate }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function BuyZoneWidget({ navigate }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => { fetchBuyZone(8).then(d => { if (d) setData(d); }); }, []);
+
+  if (!data) return <div className={styles.loading}>Loading…</div>;
+
+  const items = data.picks || [];
+  if (!items.length) return <div className={styles.loading}>No buy zone picks this cycle.</div>;
+
+  return (
+    <div>
+      <div className={styles.killerHeader}>
+        <div>
+          <h2 className={styles.sectionTitleLg} style={{ marginBottom: 2 }}>{'🟢'} Buy Zone</h2>
+          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+            Strong fundamentals + not overbought — long-term holds
+          </div>
+        </div>
+      </div>
+      <div className={styles.killerGrid}>
+        {items.slice(0, 8).map((p, i) => (
+          <div key={i} className={styles.killerCard} onClick={() => navigate('/conviction', { state: { ticker: p.ticker } })}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <div className={styles.killerTicker}>{p.ticker}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--color-success)' }}>{p.lt_score}</div>
+            </div>
+            <div className={styles.killerType}>
+              <Badge color="var(--color-success)">LT {p.lt_score} · RSI {p.rsi != null ? Math.round(p.rsi) : '—'}</Badge>
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>${p.price}</span>
+              {p.sector && <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)' }}>{p.sector}</span>}
+            </div>
+            {p.catalyst && <div className={styles.killerDetail}>{p.catalyst}</div>}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -247,10 +289,15 @@ export function BasilicaPage({ stats, latest, tz }) {
       {/* System Health */}
       <SystemHealthWidget />
 
-      {/* Killer Plays */}
-      <Card style={{ padding: 20 }}>
-        <KillerPlaysWidget onSelectPlay={(ticker) => navigate(`/ticker/${ticker}`)} navigate={navigate} />
-      </Card>
+      {/* Killer Plays + Buy Zone — side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        <Card style={{ padding: 20 }}>
+          <KillerPlaysWidget navigate={navigate} />
+        </Card>
+        <Card style={{ padding: 20 }}>
+          <BuyZoneWidget navigate={navigate} />
+        </Card>
+      </div>
 
       {/* Score Momentum */}
       <Card style={{ padding: 20 }}>

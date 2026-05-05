@@ -22,19 +22,31 @@ export function ArchivePage({ backtest: init, tz }) {
   const [data, setData] = useState(init);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [retries, setRetries] = useState(0);
   const [wtHist, setWtHist] = useState(null);
   const [calRunning, setCalRunning] = useState(false);
   const [calMsg, setCalMsg] = useState('');
 
-  const loadBT = useCallback(async (fwd) => {
+  const MAX_RETRIES = 6; // ~3 minutes of polling (6 × 30s)
+
+  const loadBT = useCallback(async (fwd, attempt = 0) => {
     setLoading(true);
     setError(false);
     const d = await fetchBacktest(60, fwd);
     if (d && d.status === 'computing') {
-      // Backend is warming the cache — poll every 30s
       setLoading(false);
-      setError('computing');
-      setTimeout(() => loadBT(fwd), 30000);
+      setRetries(attempt + 1);
+      if (attempt < MAX_RETRIES) {
+        setError('computing');
+        setTimeout(() => loadBT(fwd, attempt + 1), 30000);
+      } else {
+        setError('timeout');
+      }
+      return;
+    }
+    if (d && d.status === 'error') {
+      setError('failed');
+      setLoading(false);
       return;
     }
     if (d) setData(d);
@@ -48,7 +60,7 @@ export function ArchivePage({ backtest: init, tz }) {
   }, []);
 
   useEffect(() => {
-    if (!data) loadBT(period);
+    if (!data) loadBT(period, 0);
     loadWH();
   }, []);
 
@@ -65,25 +77,31 @@ export function ArchivePage({ backtest: init, tz }) {
     }
   };
 
+  const retryBtn = (
+    <button onClick={() => { setRetries(0); loadBT(period, 0); }} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+      ↻ Retry
+    </button>
+  );
+
   if (loading) return <div className={styles.loading}>Running backtest…</div>;
   if (!data) return (
     <Card style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 36, marginBottom: 12 }}>{error === 'computing' ? '⏳' : error ? '⚠️' : '📊'}</div>
+      <div style={{ fontSize: 36, marginBottom: 12 }}>
+        {error === 'computing' ? '⏳' : error ? '⚠️' : '📊'}
+      </div>
       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>
-        {error === 'computing'
-          ? 'Backtest computing in background…'
-          : error ? 'Backtest unavailable — server may be busy' : 'Loading backtest…'}
+        {error === 'computing' && 'Backtest computing in background…'}
+        {error === 'timeout' && 'Still computing — taking longer than usual'}
+        {error === 'failed' && 'Backtest computation failed'}
+        {error === true && 'Backtest unavailable — server may be busy'}
+        {!error && 'Loading backtest…'}
       </div>
       {error === 'computing' && (
         <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-          First run takes 60–90 seconds. Page will auto-refresh.
+          First run takes 60–90 seconds. Auto-refreshing… ({retries}/{MAX_RETRIES})
         </div>
       )}
-      {error && error !== 'computing' && (
-        <button onClick={() => loadBT(period)} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-          ↻ Retry
-        </button>
-      )}
+      {(error === 'timeout' || error === 'failed' || error === true) && retryBtn}
     </Card>
   );
 

@@ -46,6 +46,7 @@ export const generatePlays = (ticker) => api(`/plays/${ticker}/generate`, { meth
 export const fetchPlayStatus = (ticker) => api(`/plays/${ticker}/status`);
 export const fetchPlayHistory = (limit = 50) => api(`/plays/history/all?limit=${limit}`);
 export const fetchKillerPlays = (limit = 6) => api(`/killer-plays?limit=${limit}`);
+export const fetchBuyZone = (limit = 6) => api(`/buy-zone?limit=${limit}`);
 export const fetchInversePlays = (limit = 8) => api(`/inverse-plays?limit=${limit}`);
 export const sendKillerAlerts = () => api('/alerts/send-killer-plays', { method: 'POST' });
 

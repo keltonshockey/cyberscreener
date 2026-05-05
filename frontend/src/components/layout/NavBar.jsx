@@ -3,11 +3,11 @@ import { useAuth } from '../../auth/AuthContext';
 import styles from './NavBar.module.css';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Basilica', icon: '🏛️' },
-  { to: '/conviction', label: 'Conviction', icon: '📜' },
-  { to: '/pactum', label: 'Pactum', icon: '⚖️' },
-  { to: '/archive', label: 'Archive', icon: '📚' },
-  { to: '/world', label: 'World', icon: '🗺️' },
+  { to: '/', label: 'Basilica', sub: 'Dashboard', icon: '🏛️' },
+  { to: '/conviction', label: 'Conviction', sub: 'Rankings', icon: '📜' },
+  { to: '/pactum', label: 'Pactum', sub: 'Options Plays', icon: '⚖️' },
+  { to: '/archive', label: 'Archive', sub: 'Backtest', icon: '📚' },
+  { to: '/world', label: 'World', sub: '3D City', icon: '🗺️' },
 ];
 
 export function NavBar({ onRunScan, scanRunning }) {
@@ -24,7 +24,10 @@ export function NavBar({ onRunScan, scanRunning }) {
             className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
           >
             <span className={styles.icon}>{item.icon}</span>
-            {item.label}
+            <span className={styles.labelGroup}>
+              {item.label}
+              <span className={styles.sub}>{item.sub}</span>
+            </span>
           </NavLink>
         ))}
       </div>

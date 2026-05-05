@@ -31,20 +31,24 @@ _computing = False
 
 
 def _cache_fresh() -> Optional[dict]:
-    import os
     try:
         if not os.path.exists(CACHE_FILE):
             return None
         if time.time() - os.path.getmtime(CACHE_FILE) > CACHE_TTL:
             return None
         with open(CACHE_FILE) as f:
-            return json.load(f)
+            data = json.load(f)
+        # Treat error sentinels as not-fresh so callers can check status field
+        if data.get("status") == "error":
+            return data
+        return data
     except Exception:
         return None
 
 
 def _compute_and_cache(days: int, forward_period: int):
     global _computing
+    tmp = CACHE_FILE + ".tmp"
     try:
         result = {
             "computed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -54,16 +58,25 @@ def _compute_and_cache(days: int, forward_period: int):
             "layer_attribution": backtest_layer_attribution(days, forward_period),
             "earnings_timing": backtest_earnings_timing(days),
         }
-        with open(CACHE_FILE, "w") as f:
+        # Atomic write: write to .tmp then rename — avoids partial-read race condition
+        with open(tmp, "w") as f:
             json.dump(result, f)
+        os.replace(tmp, CACHE_FILE)
         logger.info("Backtest cache written")
     except Exception as e:
         logger.error(f"Backtest cache compute failed: {e}")
+        # Write error sentinel so UI can show failure instead of spinning forever
+        try:
+            with open(tmp, "w") as f:
+                json.dump({"status": "error", "message": str(e), "computed_at": time.strftime("%Y-%m-%d %H:%M:%S")}, f)
+            os.replace(tmp, CACHE_FILE)
+        except Exception:
+            pass
     finally:
         _computing = False
 
 
-def start_compute(days: int = 60, forward_period: int = 14):
+def start_compute(days: int = 60, forward_period: int = 30):
     global _computing
     with _lock:
         if _computing:
@@ -85,6 +98,8 @@ _COMPUTING_RESPONSE = {
 def get_backtest(days: int = Query(60, ge=30, le=365), forward_period: int = Query(14, ge=7, le=90)):
     cached = _cache_fresh()
     if cached:
+        if cached.get("status") == "error":
+            return {"status": "error", "message": cached.get("message", "Backtest computation failed.")}
         return cached.get("score_vs_returns", cached)
     start_compute(days, forward_period)
     return _COMPUTING_RESPONSE
@@ -94,6 +109,8 @@ def get_backtest(days: int = Query(60, ge=30, le=365), forward_period: int = Que
 def get_score_vs_returns(days: int = Query(60, ge=30, le=365), forward_period: int = Query(14, ge=7, le=90)):
     cached = _cache_fresh()
     if cached:
+        if cached.get("status") == "error":
+            return {"status": "error", "message": cached.get("message")}
         return cached.get("score_vs_returns", {})
     start_compute(days, forward_period)
     return _COMPUTING_RESPONSE
@@ -103,6 +120,8 @@ def get_score_vs_returns(days: int = Query(60, ge=30, le=365), forward_period: i
 def get_layer_attribution(days: int = Query(60, ge=30, le=365), forward_period: int = Query(14, ge=7, le=90)):
     cached = _cache_fresh()
     if cached:
+        if cached.get("status") == "error":
+            return {"status": "error", "message": cached.get("message")}
         return cached.get("layer_attribution", {})
     start_compute(days, forward_period)
     return _COMPUTING_RESPONSE
@@ -112,9 +131,24 @@ def get_layer_attribution(days: int = Query(60, ge=30, le=365), forward_period: 
 def get_earnings_timing(days: int = Query(60, ge=30, le=365)):
     cached = _cache_fresh()
     if cached:
+        if cached.get("status") == "error":
+            return {"status": "error", "message": cached.get("message")}
         return cached.get("earnings_timing", {})
-    start_compute(days, 14)
+    start_compute(days, 30)
     return _COMPUTING_RESPONSE
+
+
+@router.get("/backtest/status")
+def get_backtest_status():
+    """Lightweight status check — computing / ready / error."""
+    if _computing:
+        return {"status": "computing"}
+    cached = _cache_fresh()
+    if not cached:
+        return {"status": "computing"}
+    if cached.get("status") == "error":
+        return {"status": "error", "message": cached.get("message")}
+    return {"status": "ready", "computed_at": cached.get("computed_at")}
 
 
 @router.post("/backtest/refresh")
@@ -124,7 +158,6 @@ def refresh_backtest(
     admin: dict = Depends(require_admin),
 ):
     """Force-invalidate the backtest cache and recompute. Admin only."""
-    import os
     try:
         os.remove(CACHE_FILE)
     except FileNotFoundError:

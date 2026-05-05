@@ -11,6 +11,7 @@ import sys
 import time
 import argparse
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -67,6 +68,9 @@ def run_scheduled_scan():
                 except Exception as ne:
                     logger.warning(f"Momentum notification failed: {ne}")
 
+        # Pre-warm play cache for top killer play tickers
+        threading.Thread(target=_prewarm_killer_plays, daemon=True).start()
+
         # Morning digest: send top plays once per day at first scan after 9:30 AM ET
         now = datetime.now()
         if NOTIFIER_AVAILABLE and now.hour == 9 and now.minute >= 30:
@@ -77,6 +81,43 @@ def run_scheduled_scan():
                 logger.warning(f"Morning digest failed: {de}")
     else:
         logger.error("❌ Scan failed — no results returned.")
+
+
+def _prewarm_killer_plays():
+    """
+    After a scan, pre-generate plays for the top killer play tickers so users
+    clicking from the dashboard get instant results instead of a 15-30s wait.
+    Fires async HTTP POSTs to the local API — best-effort, never blocks the scan.
+    """
+    try:
+        import requests
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT s.ticker, (s.opt_score * 0.6 + s.lt_score * 0.4) AS combined
+            FROM scores s
+            INNER JOIN (
+                SELECT ticker, MAX(scan_id) AS max_scan_id FROM scores GROUP BY ticker
+            ) latest ON s.ticker = latest.ticker AND s.scan_id = latest.max_scan_id
+            WHERE (s.opt_score >= 45 OR s.lt_score >= 55)
+            ORDER BY combined DESC
+            LIMIT 6
+        """).fetchall()
+        conn.close()
+        tickers = [r[0] for r in rows]
+
+        def _fire(ticker):
+            try:
+                requests.post(f"http://localhost:8000/plays/{ticker}/generate", timeout=120)
+                logger.info(f"🎯 Pre-warmed plays for {ticker}")
+            except Exception as e:
+                logger.debug(f"Play pre-warm for {ticker} failed: {e}")
+
+        for t in tickers:
+            threading.Thread(target=_fire, args=(t,), daemon=True).start()
+
+        logger.info(f"🎯 Triggered play pre-warm for: {', '.join(tickers)}")
+    except Exception as e:
+        logger.warning(f"Play pre-warm setup failed: {e}")
 
 
 def _check_play_outcomes():
