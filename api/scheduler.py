@@ -205,6 +205,18 @@ def _prune_and_checkpoint():
     else:
         logger.info("🗑️  Prune: no records old enough to prune yet")
 
+    # Prune signals older than 90 days — signals are momentum logs, don't need long history
+    signals_cutoff = conn.execute(
+        "SELECT MAX(id) as id FROM scans WHERE timestamp < date('now', '-90 days')"
+    ).fetchone()
+    signals_cutoff_id = signals_cutoff["id"] if signals_cutoff and signals_cutoff["id"] else None
+    if signals_cutoff_id:
+        deleted_signals = conn.execute(
+            "DELETE FROM signals WHERE scan_id <= ?", (signals_cutoff_id,)
+        ).rowcount
+        conn.commit()
+        logger.info(f"🗑️  Pruned {deleted_signals} old signal rows")
+
     # WAL checkpoint — merges WAL into main DB file and truncates it
     conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     conn.close()

@@ -434,11 +434,37 @@ def _earnings_timing(opt_pairs_14d, opt_pairs_30d, days):
 # SELF-CALIBRATION ENGINE
 # ─────────────────────────────────────────────
 
+MIN_CALIBRATION_DAYS = 90  # need 90+ days of forward data before calibration is meaningful
+
 def calibrate_weights(days=180, forward_period=30, dry_run=False):
     """
     Auto-adjust scoring weights based on component-return correlations.
     Uses batch-optimized backtest internally.
     """
+    # Guard: require at least MIN_CALIBRATION_DAYS of scored history so forward
+    # returns are real observations, not extrapolations on 5 days of data (the
+    # Feb-27 incident where directional weight compounded to 51.7%).
+    conn = get_db()
+    oldest = conn.execute(
+        "SELECT MIN(s.timestamp) FROM scans s INNER JOIN scores sc ON sc.scan_id = s.id LIMIT 1"
+    ).fetchone()
+    conn.close()
+    if oldest and oldest[0]:
+        from datetime import datetime
+        try:
+            first_scan = datetime.fromisoformat(oldest[0].replace(" ", "T"))
+            age_days = (datetime.utcnow() - first_scan).days
+        except Exception:
+            age_days = 0
+        if age_days < MIN_CALIBRATION_DAYS:
+            return {
+                "status": "insufficient_data",
+                "message": f"Need {MIN_CALIBRATION_DAYS} days of scan history to calibrate safely. "
+                           f"Currently {age_days} days. Check back in {MIN_CALIBRATION_DAYS - age_days} days.",
+                "days_available": age_days,
+                "days_required": MIN_CALIBRATION_DAYS,
+            }
+
     attribution = backtest_layer_attribution(days, forward_period)
     if attribution.get("status") != "ok":
         return {"status": "insufficient_data", "message": "Need more backtest data to calibrate."}
