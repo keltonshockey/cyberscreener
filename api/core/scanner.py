@@ -1345,6 +1345,19 @@ def find_best_expiry(chains, days_to_earnings=None):
     return best, "standard"
 
 
+
+def _iv_is_suspect(iv_30d, market_cap_b=None) -> tuple:
+    """Returns (is_suspect: bool, reason: str). Gate bad IV before play generation."""
+    if iv_30d is None:
+        return True, "IV_30d is None"
+    if iv_30d < 1.0:
+        return True, f"IV_30d={iv_30d:.1f}% below 1% — likely bad data"
+    if iv_30d > 200.0 and market_cap_b is not None and market_cap_b >= 5.0:
+        return True, f"IV_30d={iv_30d:.1f}% > 200% on large-cap ({market_cap_b:.1f}B)"
+    if iv_30d > 500.0:
+        return True, f"IV_30d={iv_30d:.1f}% > 500% — impossible data"
+    return False, ""
+
 def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=None,
                    price_above_sma20=True, price_above_sma50=True, perf_3m=0,
                    lt_score=0, opt_score=0, iv_rank=None, whale_bias="neutral"):

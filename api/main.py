@@ -31,7 +31,7 @@ from deps import (
 
 from core.scanner import (
     run_scan,
-    fetch_options_chain, generate_plays, fetch_ticker_data,
+    fetch_options_chain, generate_plays, fetch_ticker_data, _iv_is_suspect,
     score_long_term, score_options, get_weights, set_weights,
     DEFAULT_LT_WEIGHTS, DEFAULT_OPT_WEIGHTS,
 )
@@ -1321,6 +1321,13 @@ def _fetch_plays_background(ticker):
             return
 
         _plays_status[ticker]["message"] = f"Generating plays for {ticker}..."
+        _iv_suspect, _iv_reason = _iv_is_suspect(data.get("iv_30d"), data.get("market_cap_b"))
+        if _iv_suspect:
+            logger.warning(f"IV gate [{ticker}]: skipping plays — {_iv_reason}")
+            _plays_status[ticker] = {"running": False, "message": "done",
+                "result": {"ticker": ticker, "plays": [], "price": data.get("price"),
+                           "iv_data_quality": "suspect", "error": _iv_reason}}
+            return
         plays = generate_plays(
             ticker=ticker, price=data["price"], chains=chains,
             days_to_earnings=data.get("days_to_earnings"),
@@ -1412,6 +1419,12 @@ def get_top_plays(limit: int = Query(5, ge=1, le=15)):
             if not chains:
                 results.append({"ticker": ticker, "opt_score": row["opt_score"], "plays": [], "error": "No options chain"})
                 continue
+            _iv_s, _iv_r = _iv_is_suspect(row.get("iv_30d"), row.get("market_cap_b"))
+            if _iv_s:
+                logger.warning(f"IV gate batch [{ticker}]: {_iv_r}")
+                results.append({"ticker": ticker, "opt_score": row["opt_score"],
+                                 "plays": [], "iv_data_quality": "suspect", "error": _iv_r})
+                continue
             plays = generate_plays(
                 ticker=ticker, price=row["price"], chains=chains,
                 days_to_earnings=row.get("days_to_earnings"),
@@ -1486,6 +1499,11 @@ def get_plays_for_ticker(ticker: str):
         chains = fetch_options_chain(ticker)
         if not chains:
             return {"ticker": ticker, "plays": [], "error": "No options chain", "price": data.get("price")}
+        _iv_s2, _iv_r2 = _iv_is_suspect(data.get("iv_30d"), data.get("market_cap_b"))
+        if _iv_s2:
+            logger.warning(f"IV gate sync [{ticker}]: {_iv_r2}")
+            return {"ticker": ticker, "plays": [], "price": data.get("price"),
+                    "iv_data_quality": "suspect", "error": _iv_r2}
         plays = generate_plays(
             ticker=ticker, price=data["price"], chains=chains,
             days_to_earnings=data.get("days_to_earnings"),
