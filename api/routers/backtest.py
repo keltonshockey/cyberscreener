@@ -6,6 +6,7 @@ import json
 import os
 import time
 import threading
+import concurrent.futures
 import logging
 from typing import Optional
 
@@ -46,26 +47,54 @@ def _cache_fresh() -> Optional[dict]:
         return None
 
 
+_PHASE_TIMEOUT = 90  # seconds per backtest phase
+
+def _run_phase(fn, *args):
+    """Run fn(*args) with a hard _PHASE_TIMEOUT second limit. Returns None on timeout/error."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        future = ex.submit(fn, *args)
+        try:
+            return future.result(timeout=_PHASE_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            logger.error(f"Backtest phase {fn.__name__} timed out after {_PHASE_TIMEOUT}s")
+            return None
+        except Exception as e:
+            logger.error(f"Backtest phase {fn.__name__} error: {e}")
+            return None
+
 def _compute_and_cache(days: int, forward_period: int):
     global _computing
     tmp = CACHE_FILE + ".tmp"
+    start = time.time()
     try:
+        logger.info(f"Backtest compute start: days={days} forward={forward_period}")
+        svr = _run_phase(run_full_backtest, days, forward_period)
+        logger.info(f"score_vs_returns: {'ok' if svr else 'timeout'} ({time.time()-start:.1f}s)")
+        la  = _run_phase(backtest_layer_attribution, days, forward_period)
+        logger.info(f"layer_attribution: {'ok' if la else 'timeout'} ({time.time()-start:.1f}s)")
+        et  = _run_phase(backtest_earnings_timing, days)
+        logger.info(f"earnings_timing: {'ok' if et else 'timeout'} ({time.time()-start:.1f}s)")
+
+        timed_out = svr is None or la is None or et is None
         result = {
             "computed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "days": days,
             "forward_period": forward_period,
-            "score_vs_returns": run_full_backtest(days, forward_period),
-            "layer_attribution": backtest_layer_attribution(days, forward_period),
-            "earnings_timing": backtest_earnings_timing(days),
+            "compute_seconds": round(time.time() - start, 1),
+            "partial": timed_out,
+            "score_vs_returns": svr or {"status": "timeout", "message": "Phase timed out. Try days=7."},
+            "layer_attribution": la or {"status": "timeout", "message": "Phase timed out."},
+            "earnings_timing":   et or {"status": "timeout", "message": "Phase timed out."},
         }
-        # Atomic write: write to .tmp then rename — avoids partial-read race condition
+        if timed_out:
+            result["status"] = "partial"
+            result["message"] = "Backtest timed out. Try days=7 for faster results."
         with open(tmp, "w") as f:
             json.dump(result, f)
         os.replace(tmp, CACHE_FILE)
-        logger.info("Backtest cache written")
+        logger.info(f"Backtest cache written in {result['compute_seconds']}s (partial={timed_out})")
     except Exception as e:
-        logger.error(f"Backtest cache compute failed: {e}")
-        # Write error sentinel so UI can show failure instead of spinning forever
+        logger.error(f"Backtest outer error: {e}")
         try:
             with open(tmp, "w") as f:
                 json.dump({"status": "error", "message": str(e), "computed_at": time.strftime("%Y-%m-%d %H:%M:%S")}, f)
@@ -74,6 +103,8 @@ def _compute_and_cache(days: int, forward_period: int):
             pass
     finally:
         _computing = False
+        logger.info("Backtest thread done, _computing=False")
+
 
 
 def start_compute(days: int = 60, forward_period: int = 30):
@@ -100,6 +131,10 @@ def get_backtest(days: int = Query(60, ge=30, le=365), forward_period: int = Que
     if cached:
         if cached.get("status") == "error":
             return {"status": "error", "message": cached.get("message", "Backtest computation failed.")}
+        if cached.get("status") == "partial":
+            return {"status": "timeout", "partial": True,
+                    "message": cached.get("message", "Backtest timed out. Try days=7."),
+                    "data": cached.get("score_vs_returns", {})}
         return cached.get("score_vs_returns", cached)
     start_compute(days, forward_period)
     return _COMPUTING_RESPONSE
