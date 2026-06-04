@@ -9,7 +9,7 @@ import { Card } from '../components/ui/Card';
 import { Metric } from '../components/ui/Metric';
 import { Badge } from '../components/ui/Badge';
 import { ScoreBar } from '../components/ui/ScoreBar';
-import { generatePlays, fetchPlayStatus, fetchPlayHistory, fetchWeights, updateWeights, fetchInversePlays, analyzePlaysTicker } from '../api/endpoints';
+import { generatePlays, fetchPlayStatus, fetchPlayHistory, fetchWeights, updateWeights, fetchInversePlays, analyzePlaysTicker, fetchKillerPlays } from '../api/endpoints';
 import { getRC, rcVerdict, rcBreakdown } from '../utils/scoring';
 import { fmtExpiry, fmtTimeOnly } from '../utils/formatters';
 import { useAuth } from '../auth/AuthContext';
@@ -85,12 +85,18 @@ export function PactumPage({ latest, defaultTicker, tz }) {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedRC, setExpandedRC] = useState(new Set());
+  // Self-sufficient ticker source: killer plays from /killer-plays. Used as the
+  // sidebar list whenever the parent `latest` scores prop hasn't loaded (which
+  // otherwise left the page showing "0 tickers" with no plays to forge).
+  const [killerPlays, setKillerPlays] = useState([]);
 
   const poller = useRef(null);
   const timer = useRef(null);
   const autoRef = useRef(null);
 
-  const results = latest?.results || [];
+  // Prefer the full scored universe; fall back to killer plays so the Pactum
+  // sidebar always has tickers even before /scores/latest resolves in the parent.
+  const results = (latest?.results?.length ? latest.results : killerPlays);
   const sortFn = PACTUM_SORT_OPTIONS.find(s => s.key === pactumSort)?.fn || PACTUM_SORT_OPTIONS[0].fn;
   const opts = [...results].sort(sortFn);
   const wt = Object.values(ow).reduce((a, b) => a + b, 0);
@@ -103,6 +109,15 @@ export function PactumPage({ latest, defaultTicker, tz }) {
   }, [location.state?.ticker]);
 
   useEffect(() => { fetchWeights().then(w => { if (w?.active_weights?.opt) setOw(w.active_weights.opt); }); }, []);
+  // Always pull killer plays — API returns { plays: [...] } (older builds used killer_plays).
+  useEffect(() => {
+    fetchKillerPlays(8).then(d => {
+      if (!d) return;
+      const kp = d.plays || d.killer_plays || [];
+      if (import.meta.env.DEV) console.log('[Pactum] killer plays received:', kp.length);
+      setKillerPlays(kp);
+    });
+  }, []);
   useEffect(() => { if (defaultTicker && defaultTicker !== sel) loadPlays(defaultTicker); }, [defaultTicker]);
   useEffect(() => { const id = setInterval(() => setTick(n => n + 1), 20000); return () => clearInterval(id); }, []);
   useEffect(() => () => cleanup(), []);
