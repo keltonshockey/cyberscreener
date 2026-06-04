@@ -18,6 +18,7 @@ Options Score (max 100): Is there an asymmetric short-term trade?
   - Asymmetry (10 pts): Expected move vs typical move
 """
 
+import json
 import math
 import yfinance as yf
 import pandas as pd
@@ -25,6 +26,7 @@ import numpy as np
 import time
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 
 
 def _safe_num(v, default=0):
@@ -90,6 +92,9 @@ try:
 except ImportError:
     DB_HISTORY_AVAILABLE = False
     logger.debug("DB history not available — using synthetic IV rank and skipping short delta")
+
+# Schwab enrichment cache — populated at start of each run_scan(), keyed by ticker.
+_schwab_enrichment: dict = {}
 
 # ─────────────────────────────────────────────
 # TICKER UNIVERSE
@@ -267,11 +272,29 @@ def fetch_ticker_data(ticker):
         iv_30d = None
         iv_rank = None
         fetched_chains = []   # list of (expiry, chain) tuples reused by whale detector
-        options_dates = []
-        try:
-            options_dates = list(t.options) if t.options else []
-        except Exception:
-            pass
+
+        # Use Schwab enrichment for top-25 tickers when available; else fall back to yfinance
+        _schwab_data = _schwab_enrichment.get(ticker)
+        if _schwab_data and _schwab_data.get("chain"):
+            try:
+                from core.schwab_client import chain_to_dataframes
+                calls_df, puts_df = chain_to_dataframes(_schwab_data["chain"])
+                class _MockChain:
+                    calls = calls_df
+                    puts = puts_df
+                fetched_chains = [("schwab", _MockChain())]
+                if not calls_df.empty and "impliedVolatility" in calls_df.columns:
+                    iv_30d = round(float(calls_df["impliedVolatility"].median() * 100), 1)
+            except Exception as _se:
+                logger.warning(f"Schwab chain parse failed for {ticker}: {_se}")
+                fetched_chains = []
+
+        if not fetched_chains:
+            options_dates = []
+            try:
+                options_dates = list(t.options) if t.options else []
+            except Exception:
+                pass
 
         if options_dates:
             # Fetch up to 3 expiry chains — one network call each, results cached for whale
@@ -1686,6 +1709,21 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
     if tickers is None:
         tickers = ALL_TICKERS
 
+    # ── Pre-fetch Schwab options for previous run's top-25 tickers ───────────
+    global _schwab_enrichment
+    _schwab_enrichment = {}
+    _enrichment_path = Path("/opt/cyberscreener/.vault/enrichment_tickers.json")
+    try:
+        if _enrichment_path.exists():
+            prev_top25 = json.loads(_enrichment_path.read_text())
+            if prev_top25:
+                import asyncio as _asyncio
+                from core.schwab_client import enrich_tickers as _enrich
+                _schwab_enrichment = _asyncio.run(_enrich(prev_top25))
+                logger.info(f"Schwab enrichment pre-fetched for {len(_schwab_enrichment)} tickers")
+    except Exception as _e:
+        logger.warning(f"Schwab pre-fetch failed (non-fatal): {_e}")
+
     # ── Pre-fetch threat intel caches once for the whole scan ─────────────────
     _NEWS_INTEL_AVAILABLE = False
     try:
@@ -1828,5 +1866,12 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
             results.append(data)
 
         time.sleep(0.15)
+
+    # Write top-25 by lt_score for next run's Schwab enrichment
+    try:
+        top25 = [r["ticker"] for r in sorted(results, key=lambda x: x.get("lt_score", 0), reverse=True)[:25] if "ticker" in r]
+        _enrichment_path.write_text(json.dumps(top25))
+    except Exception as _e:
+        logger.warning(f"Failed to write enrichment_tickers.json: {_e}")
 
     return results
