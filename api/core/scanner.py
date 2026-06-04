@@ -803,13 +803,17 @@ def score_long_term(row, weights=None):
         raw = 0.85
         reasons.append(f"✅ Fair value: {ev_rev:.1f}x EV/Rev for {rg:.0f}% growth")
     elif val_ratio < 0.5 and ev_rev < 20:
-        raw = 0.6
+        raw = 0.7
+    elif val_ratio < 0.8 and ev_rev < 25:
+        # Reasonably valued growth — a quality compounder at 10-20x EV/Rev
+        # shouldn't score near-zero just for not being cheap.
+        raw = 0.55
     elif ev_rev < 10:
-        raw = 0.4
+        raw = 0.5
     elif ev_rev < 20:
-        raw = 0.2
+        raw = 0.35
     else:
-        raw = max(0, 0.1 - (ev_rev - 20) / 100)
+        raw = max(0, 0.15 - (ev_rev - 20) / 100)
         if ev_rev > 30:
             reasons.append(f"💸 Expensive: {ev_rev:.1f}x EV/Rev")
 
@@ -943,16 +947,23 @@ def score_long_term(row, weights=None):
         else:
             reasons.append(f"🏷️ Down {abs(disc):.0f}% from high — potential value or value trap")
     elif disc < -15:
-        discount_raw = 0.3
+        discount_raw = 0.4
         if perf_1m > 0:
+            discount_raw = 0.7
+    elif disc < -5:
+        # Mild pullback (-15% to -5%) — previously a dead zone scoring 0.
+        discount_raw = 0.45
+        if perf_3m > 0:
             discount_raw = 0.6
-    elif disc > -5:
-        # Near highs — strong if momentum is positive
+    else:
+        # Near/at highs — momentum strength matters most here.
         if perf_3m > 10:
-            discount_raw = 0.5
+            discount_raw = 0.9
             reasons.append(f"💪 Near highs with strong momentum (+{perf_3m:.0f}% 3m)")
+        elif perf_3m > 0:
+            discount_raw = 0.6
         else:
-            discount_raw = 0.2
+            discount_raw = 0.3
 
     # P5: Short interest delta modifier
     # Covering shorts (negative delta) = squeeze setup → boost score
