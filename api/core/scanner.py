@@ -814,11 +814,11 @@ def score_long_term(row, weights=None):
         raw = 0.85
         reasons.append(f"✅ Fair value: {ev_rev:.1f}x EV/Rev for {rg:.0f}% growth")
     elif val_ratio < 0.5 and ev_rev < 20:
-        raw = 0.7
+        raw = 0.75
     elif val_ratio < 0.8 and ev_rev < 25:
         # Reasonably valued growth — a quality compounder at 10-20x EV/Rev
         # shouldn't score near-zero just for not being cheap.
-        raw = 0.55
+        raw = 0.6
     elif ev_rev < 10:
         raw = 0.5
     elif ev_rev < 20:
@@ -963,16 +963,16 @@ def score_long_term(row, weights=None):
             discount_raw = 0.7
     elif disc < -5:
         # Mild pullback (-15% to -5%) — previously a dead zone scoring 0.
-        discount_raw = 0.45
+        discount_raw = 0.5
         if perf_3m > 0:
-            discount_raw = 0.6
+            discount_raw = 0.65
     else:
         # Near/at highs — momentum strength matters most here.
         if perf_3m > 10:
-            discount_raw = 0.9
+            discount_raw = 1.0
             reasons.append(f"💪 Near highs with strong momentum (+{perf_3m:.0f}% 3m)")
         elif perf_3m > 0:
-            discount_raw = 0.6
+            discount_raw = 0.65
         else:
             discount_raw = 0.3
 

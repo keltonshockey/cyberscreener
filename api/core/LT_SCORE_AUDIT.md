@@ -72,8 +72,9 @@ trend / fcf, which the fix doesn't touch).
 | | min | max | avg | p10 | p50 | p90 | <50 | >75 |
 |---|---|---|---|---|---|---|---|---|
 | Before | 18.7 | 90.0 | 50.9 | 33.9 | 50.5 | 68.6 | 48% | 4% |
-| After | 20.7 | 91.5 | 57.3 | 40.2 | 57.7 | 75.2 | 33% | 10% |
+| After | 20.7 | 92.0 | 58.2 | 41.0 | 58.6 | 76.3 | 31% | 12% |
 
-Both distribution targets are met: **≥10% below 50 (33%)** and **≥10% above 75 (10%)**.
-Spot checks: bad names (FMC, DOW, JBLU) stay 20-26; strong names (GEN, FSLR, LLY,
-ADI) land 87-92.
+Both distribution targets are met with a buffer against daily data noise:
+**≥10% below 50 (31%)** and **≥10% above 75 (12%)**. Spot checks: bad names
+(FMC 20.7, DOW 24.0, XRAY 24.4, JBLU 25.0) stay low; strong names (ADI 92.0,
+GEN 91.5, FSLR 91.1, SM 90.8) land high.
