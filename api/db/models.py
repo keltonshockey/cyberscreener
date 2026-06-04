@@ -59,6 +59,7 @@ def _migrate_scores_table(conn):
         ("lt_breakdown", "TEXT"),
         ("opt_breakdown", "TEXT"),
         ("short_delta", "REAL"),  # P5: change in short interest over 60d
+        ("rc_score", "INTEGER"),
     ]
 
     for col_name, col_type in new_columns:
@@ -261,7 +262,8 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 timing_signals, timing_debug,
                 sector, subsector, scoring_profile,
                 threat_score, outage_status, breach_victim, demand_signal,
-                short_delta
+                short_delta,
+                rc_score
             ) VALUES (
                 ?,?,?,?,
                 ?,?,
@@ -309,6 +311,7 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
             1 if r.get("breach_victim") else 0,
             1 if r.get("demand_signal") else 0,
             r.get("short_delta"),
+            r.get("rc_score", 0),
         ))
 
         # Save price snapshot

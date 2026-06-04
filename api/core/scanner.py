@@ -711,6 +711,44 @@ def _score_component(raw_score_0_to_1, weight):
     return round(max(0, min(1, raw_score_0_to_1)) * weight, 1)
 
 
+
+def _compute_ticker_rc(d: dict) -> int:
+    """Ticker-level RC (0-100): reflects setup quality for the scores table."""
+    score = 0
+    opt = d.get("opt_score") or 0
+    lt  = d.get("lt_score") or 0
+    iv  = d.get("iv_30d") or 0
+    iv_rank = d.get("iv_rank") or 50
+    rsi = d.get("rsi") or 50
+
+    score += min(20, int(opt * 0.4))   # opt quality (max 20)
+    score += min(20, int(lt * 0.4))    # lt quality (max 20)
+
+    if 20 <= iv <= 80 and iv_rank >= 40:
+        score += 20
+    elif 15 <= iv <= 100 and iv_rank >= 25:
+        score += 12
+    elif iv > 0:
+        score += 5
+
+    if 40 <= rsi <= 65:
+        score += 10
+    elif 30 <= rsi < 40 or 65 < rsi <= 75:
+        score += 5
+    if d.get("price_above_sma20"):
+        score += 5
+    if d.get("price_above_sma50"):
+        score += 5
+
+    dte = d.get("days_to_earnings")
+    if dte is not None:
+        if 10 <= dte <= 35:
+            score += 20
+        elif 5 <= dte < 10 or 35 < dte <= 60:
+            score += 10
+
+    return min(100, max(0, score))
+
 def score_long_term(row, weights=None):
     """
     Score a stock for long-term value (max 100).
@@ -1863,6 +1901,12 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
             data["sector"] = meta.get("sector", "cyber")
             data["subsector"] = meta.get("subsector", "")
             data["scoring_profile"] = meta.get("scoring_profile", "saas")
+            try:
+                data["rc_score"] = _compute_ticker_rc(data)
+                logger.info(f"RC {ticker}: {data['rc_score']}")
+            except Exception as _rce:
+                logger.warning(f"RC failed for {ticker}: {_rce}")
+                data["rc_score"] = 0
             results.append(data)
 
         time.sleep(0.15)
