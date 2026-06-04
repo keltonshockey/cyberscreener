@@ -616,7 +616,50 @@ async def get_personalized_scores(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "3.0.0", "scans": get_scan_count()}
+    import os, subprocess
+    from datetime import datetime, timezone
+
+    last_scan_utc = None
+    scan_age_seconds = None
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT timestamp FROM scans ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        if row:
+            last_scan_utc = row["timestamp"]
+            ts = datetime.fromisoformat(last_scan_utc)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            scan_age_seconds = int((datetime.now(timezone.utc) - ts).total_seconds())
+    except Exception:
+        pass
+
+    db_size_mb = None
+    try:
+        db_path = os.environ.get("CYBERSCREENER_DB", "/app/data/cyberscreener.db")
+        db_size_mb = round(os.path.getsize(db_path) / (1024 * 1024), 1)
+    except Exception:
+        pass
+
+    version = "unknown"
+    try:
+        version = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "last_scan_utc": last_scan_utc,
+        "scan_age_seconds": scan_age_seconds,
+        "db_size_mb": db_size_mb,
+        "droplet": "64.23.150.209",
+        "version": version,
+        "scans": get_scan_count(),
+    }
 
 
 @app.get("/health/detailed")
