@@ -79,7 +79,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
   const [showHist, setShowHist] = useState(false);
   const [playHist, setPlayHist] = useState(null);
   const [histLoading, setHistLoading] = useState(false);
-  const [ow, setOw] = useState({ earnings_catalyst: 25, iv_context: 20, directional: 20, technical: 15, liquidity: 10, asymmetry: 10 });
+  const [ow, setOw] = useState({ iv_context: 29, directional: 28, technical: 23, liquidity: 10, asymmetry: 10 });
   const [pactumSort, setPactumSort] = useState('combined');
   const [playSort, setPlaySort] = useState('rc');
   const [aiAnalysis, setAiAnalysis] = useState(null);
@@ -247,11 +247,12 @@ export function PactumPage({ latest, defaultTicker, tz }) {
         <Card style={{ padding: 24 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>How Options Scoring Works</h3>
           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 12 }}>
-            The Options Score (0&ndash;100) has six weighted components:
+            The Options Score (0&ndash;100) has five weighted components. Earnings
+            proximity is applied as a multiplier (×1.3 within 3&ndash;14 days, ×1.1
+            within 14&ndash;30) rather than a base component.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
-              { n: 'Earnings Catalyst', w: ow.earnings_catalyst, d: 'Proximity to earnings — #1 IV driver. Sweet spot: 5–14 days out.' },
               { n: 'IV Context', w: ow.iv_context, d: 'IV rank vs history. Low = cheap (buy). High = expensive (sell/spread).' },
               { n: 'Directional Conviction', w: ow.directional, d: 'RSI, SMA alignment, volume. Strong = clear call/put bias.' },
               { n: 'Technical Setup', w: ow.technical, d: 'BB squeeze + RSI extremes. Breakout or mean-reversion signals.' },
@@ -621,7 +622,6 @@ export function PactumPage({ latest, defaultTicker, tz }) {
             <div className={styles.sectionLabel}>Opt Score Weights</div>
             <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginBottom: 12 }}>Adjust factor contributions. Total &asymp; 100.</div>
             {[
-              ['Earnings', ow.earnings_catalyst, v => setOw(p => ({ ...p, earnings_catalyst: v }))],
               ['IV Context', ow.iv_context, v => setOw(p => ({ ...p, iv_context: v }))],
               ['Directional', ow.directional, v => setOw(p => ({ ...p, directional: v }))],
               ['Technical', ow.technical, v => setOw(p => ({ ...p, technical: v }))],
@@ -639,7 +639,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
                 Total: {wt}/100
               </span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className={styles.tunerAction} onClick={() => setOw({ earnings_catalyst: 25, iv_context: 20, directional: 20, technical: 15, liquidity: 10, asymmetry: 10 })}>Reset</button>
+                <button className={styles.tunerAction} onClick={() => setOw({ iv_context: 29, directional: 28, technical: 23, liquidity: 10, asymmetry: 10 })}>Reset</button>
                 <button className={styles.tunerApply} onClick={() => updateWeights({ opt: ow })}>Apply</button>
               </div>
             </div>

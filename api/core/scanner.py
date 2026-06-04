@@ -139,11 +139,15 @@ DEFAULT_LT_WEIGHTS = {
     "discount_momentum": 15,
 }
 
+# Earnings catalyst is NOT a base-scored component — it is applied as a
+# multiplier on the final Opt Score (see score_options). The base measures the
+# options *setup* quality; the old 25-pt earnings component dragged ~90% of
+# tickers down on any given day (no earnings within the window). Its weight was
+# redistributed to iv_context / directional / technical so the base sums to 100.
 DEFAULT_OPT_WEIGHTS = {
-    "earnings_catalyst": 25,
-    "iv_context": 20,
-    "directional": 20,
-    "technical": 15,
+    "iv_context": 29,
+    "directional": 28,
+    "technical": 23,
     "liquidity": 10,
     "asymmetry": 10,
 }
@@ -158,7 +162,14 @@ def set_weights(lt_weights=None, opt_weights=None):
     if lt_weights:
         _active_lt_weights = lt_weights
     if opt_weights:
-        _active_opt_weights = opt_weights
+        # Sanitize: keep only recognized base components (drops the retired
+        # earnings_catalyst), backfill any missing from defaults, and renormalize
+        # to 100 so a stale saved/user weight set can't re-cap the base score.
+        cleaned = {k: opt_weights.get(k, DEFAULT_OPT_WEIGHTS[k]) for k in DEFAULT_OPT_WEIGHTS}
+        total = sum(cleaned.values())
+        if total > 0:
+            cleaned = {k: round(v / total * 100, 1) for k, v in cleaned.items()}
+        _active_opt_weights = cleaned
 
 def get_weights():
     """Return current active weights."""
@@ -1005,31 +1016,14 @@ def score_options(row, weights=None):
     reasons = []
     breakdown = {}
 
-    # ── 1. EARNINGS CATALYST ──
+    # ── EARNINGS PROXIMITY ──
+    # No longer a base-scored component. Earnings proximity is applied as a
+    # multiplier on the final score below (see EARNINGS MULTIPLIER), so that a
+    # strong options setup isn't dragged to ~half-score on the (common) days a
+    # ticker has no earnings inside the window.
     dte = row.get("days_to_earnings")
-    if dte is not None and dte > 0:
-        if 5 <= dte <= 14:
-            raw = 1.0
-            reasons.append(f"🎯 Earnings in {dte} days — prime options window")
-        elif 15 <= dte <= 30:
-            raw = 0.7
-            reasons.append(f"📅 Earnings in {dte} days — building toward catalyst")
-        elif 1 <= dte <= 4:
-            raw = 0.6
-            reasons.append(f"⚡ Earnings imminent ({dte}d) — elevated risk/reward")
-        elif 31 <= dte <= 45:
-            raw = 0.3
-        else:
-            raw = 0.1
-    else:
-        raw = 0.1  # No catalyst is not zero, but low
 
-    pts = _score_component(raw, w["earnings_catalyst"])
-    breakdown["earnings_catalyst"] = {"points": pts, "max": w["earnings_catalyst"],
-                                       "raw_value": dte, "raw": round(raw, 4)}
-    score += pts
-
-    # ── 2. IV CONTEXT (IV Rank, not raw IV) ──
+    # ── 1. IV CONTEXT (IV Rank, not raw IV) ──
     iv = row.get("iv_30d") or 0
     ivr = row.get("iv_rank")
 
@@ -1217,6 +1211,29 @@ def score_options(row, weights=None):
     breakdown["asymmetry"] = {"points": pts, "max": w["asymmetry"],
                                "raw_value": {"short_pct": short_pct, "beta": beta_val}, "raw": round(raw, 4)}
     score += pts
+
+    # ── EARNINGS MULTIPLIER ──
+    # Amplify the base setup score when earnings are near; never penalize when
+    # they aren't. 3-14 days out = prime window (1.3x); 14-30 days = building
+    # (1.1x); otherwise / no earnings = unchanged (1.0x). Capped at 100.
+    base_score = round(score, 1)
+    if dte is not None and 3 <= dte <= 14:
+        mult = 1.3
+        reasons.append(f"🎯 Earnings in {dte} days — prime window (score ×1.3)")
+    elif dte is not None and 14 < dte <= 30:
+        mult = 1.1
+        reasons.append(f"📅 Earnings in {dte} days — building toward catalyst (score ×1.1)")
+    else:
+        mult = 1.0
+    score = min(100.0, base_score * mult)
+
+    # Reported for transparency / DB column compatibility. earnings_catalyst is
+    # no longer a weighted base component; "points" is the bonus the multiplier
+    # added, "max": 0 signals it is not part of the 100-pt base.
+    breakdown["earnings_catalyst"] = {
+        "points": round(score - base_score, 1), "max": 0,
+        "multiplier": mult, "base_score": base_score, "raw_value": dte,
+    }
 
     return round(score, 1), reasons, breakdown
 

@@ -13,8 +13,9 @@ const LT_COMPONENTS = [
   { key: 'discount_momentum', name: 'Momentum', icon: '🔄' },
 ];
 
+// earnings_catalyst is no longer a base-scored component — it is applied as a
+// multiplier on the final Opt Score (surfaced in the play's reason text).
 const OPT_COMPONENTS = [
-  { key: 'earnings_catalyst', name: 'Catalyst', icon: '⚡' },
   { key: 'iv_context', name: 'IV Context', icon: '📉' },
   { key: 'directional', name: 'Directional', icon: '🎯' },
   { key: 'technical', name: 'Technical', icon: '🔧' },

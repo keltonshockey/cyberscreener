@@ -31,7 +31,9 @@ ATTRIBUTE_MAP = {
         ("lt", "trend", 1.0),              # Momentum → trend-following
     ],
     "prospectus": [
-        ("opt", "earnings_catalyst", 1.5), # Vision → earnings catalysts
+        # earnings_catalyst retired as a base component (now a multiplier); bias
+        # the catalyst-seeker toward directional conviction + IV awareness instead.
+        ("opt", "directional", 1.2),       # Vision → conviction ahead of catalysts
         ("opt", "iv_context", 1.0),        # Vision → IV awareness
     ],
     "liquiditas": [
