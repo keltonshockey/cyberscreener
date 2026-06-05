@@ -1358,20 +1358,22 @@ def _fetch_plays_background(ticker):
                         strike=play.get("strike"),
                         expiry=play.get("expiry"),
                         dte=play.get("dte", 30),
-                        entry_price=data["price"],
+                        entry_price=play.get("entry_price", data["price"]),
                         entry_iv_rank=data.get("iv_rank"),
                         lt_score=data.get("lt_score", 0),
                         opt_score=data.get("opt_score", 0),
                         rc_score=rc,
                         direction=play.get("direction", "bullish"),
                         notes=play.get("rationale", ""),
+                        max_loss=play.get("max_loss"),
+                        risk_reward_ratio=play.get("risk_reward_ratio"),
                     )
                 except Exception:
                     pass  # P&L logging is non-critical
                 # Email alert for high-conviction plays (RC ≥ 80)
                 if rc >= 80 and _NOTIFIER_AVAILABLE:
                     try:
-                        play_with_price = {**play, "entry_price": data["price"]}
+                        play_with_price = {**play, "entry_price": play.get("entry_price", data["price"])}
                         _notify_high_rc_play(ticker, play_with_price, rc)
                     except Exception:
                         pass  # notifications are non-critical

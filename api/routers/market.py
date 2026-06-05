@@ -15,7 +15,7 @@ import yfinance as yf
 from fastapi import APIRouter, Query, HTTPException
 
 from db.models import get_db
-from core.scanner import get_weights
+from core.scanner import get_weights, _iv_is_suspect
 from core.universe import (
     ALL_CYBER_TICKERS, ALL_ENERGY_TICKERS, ALL_DEFENSE_TICKERS, ALL_BROAD_TICKERS,
 )
@@ -321,13 +321,13 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
             ) latest2 ON s2.ticker = latest2.ticker AND s2.scan_id = latest2.max_scan_id
         )
     """).fetchone()
-    combined_floor = max(35.0, float(pct_row[0]) if pct_row else 35.0)
+    combined_floor = max(65.0, float(pct_row[0]) if pct_row else 65.0)
 
     rows = conn.execute("""
         SELECT s.ticker, s.price, s.opt_score, s.lt_score, s.rsi, s.days_to_earnings,
                s.threat_score, s.outage_status, s.breach_victim, s.demand_signal,
                s.bb_width, s.vol_ratio, s.sector, s.pct_from_52w_high, s.beta,
-               s.iv_30d, s.horizon, s.recommended_expiry, s.iv_rank
+               s.iv_30d, s.horizon, s.recommended_expiry, s.iv_rank, s.market_cap_b
         FROM scores s
         INNER JOIN (
             SELECT ticker, MAX(scan_id) AS max_scan_id
@@ -346,6 +346,11 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
     results = []
     for r in rows:
         row = dict(r)
+        _iv_suspect, _iv_reason = _iv_is_suspect(row.get("iv_30d"), row.get("market_cap_b"))
+        if _iv_suspect:
+            logger.warning(f"IV gate [killer-plays/{row['ticker']}]: skipping — {_iv_reason}")
+            continue
+
         rsi = row.get("rsi") or 50
         dte = row.get("days_to_earnings")
         opt = row.get("opt_score") or 0
@@ -387,6 +392,36 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
         results.append(row)
         if len(results) >= limit:
             break
+
+    # Enrich each result with the most recent open play details from DB
+    if results:
+        ticker_list = [r["ticker"] for r in results]
+        placeholders = ",".join("?" * len(ticker_list))
+        pconn = get_db()
+        play_rows = pconn.execute(
+            f"SELECT ticker, strategy, strike, entry_price, max_loss, risk_reward_ratio,"
+            f" direction, expiry, rc_score FROM options_plays"
+            f" WHERE ticker IN ({placeholders}) AND status = 'open'"
+            f" ORDER BY generated_at DESC",
+            ticker_list,
+        ).fetchall()
+        pconn.close()
+        best_play = {}
+        for pr in play_rows:
+            t = pr["ticker"]
+            if t not in best_play:
+                best_play[t] = dict(pr)
+        for result_row in results:
+            bp = best_play.get(result_row["ticker"])
+            if bp:
+                result_row["play_strategy"] = bp.get("strategy")
+                result_row["play_strike"] = bp.get("strike")
+                result_row["play_entry_price"] = bp.get("entry_price")
+                result_row["play_max_loss"] = bp.get("max_loss")
+                result_row["play_risk_reward_ratio"] = bp.get("risk_reward_ratio")
+                result_row["play_expiry"] = bp.get("expiry")
+                result_row["play_rc_score"] = bp.get("rc_score")
+                result_row["play_direction"] = bp.get("direction")
 
     return {
         "plays": results,

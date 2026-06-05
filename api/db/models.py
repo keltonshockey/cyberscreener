@@ -612,7 +612,8 @@ def get_short_interest_trend(ticker: str, days: int = 60) -> dict:
 def log_play(ticker: str, horizon: str, strategy: str, strike: float,
              expiry: str, dte: int, entry_price: float, entry_iv_rank: float,
              lt_score: float, opt_score: float, rc_score: int,
-             direction: str = "bullish", notes: str = "") -> int:
+             direction: str = "bullish", notes: str = "",
+             max_loss: float = None, risk_reward_ratio: float = None) -> int:
     """
     Log a generated play to options_plays for P&L tracking.
     Returns the new play ID.
@@ -622,13 +623,13 @@ def log_play(ticker: str, horizon: str, strategy: str, strike: float,
         INSERT INTO options_plays
             (ticker, generated_at, horizon, strategy, strike, expiry, dte,
              entry_price, entry_iv_rank, lt_score, opt_score, rc_score,
-             direction, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+             direction, status, notes, max_loss, risk_reward_ratio)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
     """, (
         ticker, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         horizon, strategy, strike, expiry, dte,
         entry_price, entry_iv_rank, lt_score, opt_score, rc_score,
-        direction, notes,
+        direction, notes, max_loss, risk_reward_ratio,
     ))
     play_id = cursor.lastrowid
     conn.commit()
