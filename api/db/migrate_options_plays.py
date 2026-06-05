@@ -38,6 +38,12 @@ def run_migration():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_ticker ON options_plays(ticker)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_status ON options_plays(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_expiry ON options_plays(expiry)")
+        # Idempotent column additions (older DBs won't have these)
+        for col, coltype in [("max_loss", "REAL"), ("risk_reward_ratio", "REAL")]:
+            try:
+                conn.execute(f"ALTER TABLE options_plays ADD COLUMN {col} {coltype}")
+            except Exception:
+                pass  # column already exists
         conn.commit()
         print("✅ options_plays table ready")
     except Exception as e:
