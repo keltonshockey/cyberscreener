@@ -346,7 +346,11 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
     results = []
     for r in rows:
         row = dict(r)
-        _iv_suspect, _iv_reason = _iv_is_suspect(row.get("iv_30d"), row.get("market_cap_b"))
+        iv_30d = row.get("iv_30d")
+        if iv_30d is not None and iv_30d > 200:
+            logger.warning(f"IV sanity gate [killer-plays/{row["ticker"]}]: iv_30d={iv_30d}% > 200% — data-error skip")
+            continue
+        _iv_suspect, _iv_reason = _iv_is_suspect(iv_30d, row.get("market_cap_b"))
         if _iv_suspect:
             logger.warning(f"IV gate [killer-plays/{row['ticker']}]: skipping — {_iv_reason}")
             continue
