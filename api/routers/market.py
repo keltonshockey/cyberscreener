@@ -375,6 +375,9 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
             row["direction"] = "neutral"
             row["direction_label"] = "↔ Neutral"
 
+        if row["direction"] == "neutral":
+            continue
+
         if dte is not None and 1 <= dte <= 14:
             row["catalyst"] = f"⚡ Earnings {dte}d"
         elif dte is not None and 14 < dte <= 30:
