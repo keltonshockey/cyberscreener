@@ -1380,6 +1380,8 @@ def _fetch_plays_background(ticker):
             opt_score=data.get("opt_score", 0),
             iv_rank=data.get("iv_rank"),
             whale_bias=data.get("whale_bias", "neutral"),
+            weekly_above_sma20=data.get("weekly_above_sma20"),
+            vol_ratio=data.get("vol_ratio", 1.0),
         )
 
         # Score each play with unified Reality Check and log high-quality ones for P&L tracking
@@ -1471,14 +1473,22 @@ def get_top_plays(limit: int = Query(5, ge=1, le=15)):
             _iv_use, _iv_estimated, _iv_note = _iv_for_play(row.get("iv_30d"), row.get("market_cap_b"))
             if _iv_estimated:
                 logger.info(f"IV estimated batch [{ticker}]: {_iv_note}")
+            # Derive SMA position from the row instead of assuming bullish — a
+            # hardcoded price_above_sma=True was the same latent long-bias the
+            # rebuild removes. None (unknown) is skipped by the helper, not read
+            # as bullish.
+            _p, _s20, _s50 = row.get("price"), row.get("sma_20"), row.get("sma_50")
+            _above20 = (_p > _s20) if (_p is not None and _s20) else None
+            _above50 = (_p > _s50) if (_p is not None and _s50) else None
             plays = generate_plays(
                 ticker=ticker, price=row["price"], chains=chains,
                 days_to_earnings=row.get("days_to_earnings"),
                 rsi=row.get("rsi", 50), iv_30d=_iv_use,
-                price_above_sma20=True, price_above_sma50=True,
+                price_above_sma20=_above20, price_above_sma50=_above50,
                 perf_3m=row.get("perf_3m", 0),
                 lt_score=row.get("lt_score", 0),
                 opt_score=row.get("opt_score", 0),
+                vol_ratio=row.get("vol_ratio", 1.0),
             )
             results.append({
                 "ticker": ticker, "opt_score": row["opt_score"], "lt_score": row["lt_score"],
@@ -1549,7 +1559,7 @@ def get_plays_for_ticker(ticker: str):
         _iv_use, _iv_estimated, _iv_note = _iv_for_play(data.get("iv_30d"), data.get("market_cap_b"))
         if _iv_estimated:
             logger.info(f"IV estimated sync [{ticker}]: {_iv_note}")
-        plays = generate_plays(
+        plays = generate_plays(  # weekly_above_sma20 + vol_ratio added below
             ticker=ticker, price=data["price"], chains=chains,
             days_to_earnings=data.get("days_to_earnings"),
             rsi=data.get("rsi", 50), iv_30d=_iv_use,
@@ -1560,6 +1570,8 @@ def get_plays_for_ticker(ticker: str):
             opt_score=data.get("opt_score", 0),
             iv_rank=data.get("iv_rank"),
             whale_bias=data.get("whale_bias", "neutral"),
+            weekly_above_sma20=data.get("weekly_above_sma20"),
+            vol_ratio=data.get("vol_ratio", 1.0),
         )
         # Score each play with unified Reality Check
         for play in plays:
