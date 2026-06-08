@@ -82,6 +82,7 @@ CREATE TABLE scores (
     demand_signal INTEGER DEFAULT 0,
     short_delta REAL,
     rc_score INTEGER,
+    iv_suspect INTEGER DEFAULT 0,  -- added by the iv-ingestion sanity migration (this PR)
     FOREIGN KEY (scan_id) REFERENCES scans(id)
 );
 

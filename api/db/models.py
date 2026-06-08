@@ -73,6 +73,10 @@ def _migrate_scores_table(conn):
         ("outage_status", "TEXT DEFAULT 'none'"),
         ("breach_victim", "INTEGER DEFAULT 0"),
         ("demand_signal", "INTEGER DEFAULT 0"),
+        # iv_suspect: 1 when the ingestion sanity gate rejected this row's iv_30d
+        # as implausible (and NULLed it). Lets downstream analysis segment/count
+        # gated rows instead of conflating them with legitimately-absent IV.
+        ("iv_suspect", "INTEGER DEFAULT 0"),
     ]
 
     for col_name, col_type in new_columns:
@@ -285,7 +289,8 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 sector, subsector, scoring_profile,
                 threat_score, outage_status, breach_victim, demand_signal,
                 short_delta,
-                rc_score
+                rc_score,
+                iv_suspect
             ) VALUES (
                 ?,?,?,?,
                 ?,?,
@@ -303,7 +308,8 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 ?,?,
                 ?,?,?,
                 ?,?,?,?,
-                ?,?
+                ?,?,
+                ?
             )
         """, (
             scan_id, r["ticker"], r.get("price"), r.get("market_cap_b"),
@@ -334,6 +340,7 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
             1 if r.get("demand_signal") else 0,
             r.get("short_delta"),
             r.get("rc_score", 0),
+            1 if r.get("iv_suspect") else 0,
         ))
 
         # Save price snapshot
