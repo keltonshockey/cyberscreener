@@ -1433,6 +1433,52 @@ def _iv_is_suspect(iv_30d, market_cap_b=None) -> tuple:
     return False, ""
 
 
+def _fallback_iv(market_cap_b=None) -> float:
+    """Typical ATM 30d IV (%) by market-cap tier.
+
+    Used when the stored iv_30d is untrustworthy (NULLed by the ingestion sanity
+    gate, genuinely absent, or a pre-fix corrupt value) so a play can still be
+    generated. Mirrors the inverse cap→IV relationship the gate assumes: larger
+    caps carry lower typical IV. Deliberately conservative midpoints — the play's
+    actual pricing comes from the live per-strike chain IV, so this only feeds the
+    expected-move estimate and the high-IV strategy gating in generate_plays.
+    """
+    if market_cap_b is None:
+        return 60.0
+    if market_cap_b >= 100:
+        return 35.0
+    if market_cap_b >= 20:
+        return 45.0
+    if market_cap_b >= 5:
+        return 55.0
+    return 70.0
+
+
+def _iv_for_play(iv_30d, market_cap_b=None) -> tuple:
+    """Resolve the IV to feed play generation. Returns (iv_to_use, iv_estimated, note).
+
+    This is the downstream counterpart to the ingestion sanity gate. Previously
+    every play path called ``_iv_is_suspect`` and *skipped* the ticker on a hit —
+    but ``_iv_is_suspect(None)`` is True, so once ingestion began NULLing corrupt
+    IV (and every genuinely-absent IV), ~19% of the universe silently vanished
+    from /killer-plays and play generation. That is unacceptable: a missing IV is
+    a data hole, not a reason to hide a ticker.
+
+    Instead, when the stored IV is untrustworthy (None, or a pre-fix corrupt value
+    still in history) we substitute a cap-tier proxy and flag ``iv_estimated`` so
+    the ticker still produces a play and the estimation is visible to callers.
+    A trustworthy value passes through unchanged. generate_plays tolerates the
+    proxy (it only affects expected-move + high-IV gating); the play's per-strike
+    IV is read from the live option chain, independent of this value.
+    """
+    if iv_30d is None:
+        return _fallback_iv(market_cap_b), True, "IV unavailable — estimated from market cap"
+    suspect, reason = _iv_is_suspect(iv_30d, market_cap_b)
+    if suspect:
+        return _fallback_iv(market_cap_b), True, f"IV rejected ({reason}) — estimated from market cap"
+    return iv_30d, False, None
+
+
 def _atm_iv_pct(calls_df, puts_df, price, band=0.15):
     """Median implied volatility (%) of liquid near-the-money strikes, or None.
 

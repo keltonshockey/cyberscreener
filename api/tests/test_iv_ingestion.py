@@ -14,6 +14,7 @@ score_options / generate_plays neutrally (not as a 0 that reads as "cheap IV").
 """
 import os
 import sys
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -22,6 +23,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from core.scanner import (
     _iv_is_suspect,
     _atm_iv_pct,
+    _iv_for_play,
+    _fallback_iv,
     score_options,
     generate_plays,
 )
@@ -148,3 +151,74 @@ def test_null_iv_does_not_crash_generate_plays():
     # No chains -> empty list, but crucially must not raise on None iv_30d.
     plays = generate_plays("ACME", 100.0, [], iv_30d=None, rsi=55, iv_rank=None)
     assert plays == []
+
+
+# ── _iv_for_play / _fallback_iv: NULL IV must not silently drop a ticker ───────
+#
+# The interaction flaw this guards against: once the ingestion gate began NULLing
+# corrupt IV (and every absent IV), the downstream play paths all called
+# _iv_is_suspect and *skipped* on a hit. _iv_is_suspect(None) is True, so ~19% of
+# the universe silently vanished from /killer-plays and play generation. The fix
+# substitutes a cap-tier proxy and flags iv_estimated instead of dropping.
+
+def test_iv_for_play_passes_through_trustworthy_value():
+    iv_use, estimated, note = _iv_for_play(45.0, market_cap_b=500.0)
+    assert iv_use == 45.0 and not estimated and note is None
+
+
+def test_iv_for_play_estimates_on_null_instead_of_dropping():
+    iv_use, estimated, note = _iv_for_play(None, market_cap_b=500.0)
+    assert estimated is True
+    assert isinstance(iv_use, float) and iv_use > 0   # a usable IV, never None
+    assert note and "estimated" in note.lower()
+
+
+def test_iv_for_play_estimates_on_corrupt_high_value():
+    # Mega-cap reading an impossible 152% -> rejected, but still estimated, not dropped.
+    iv_use, estimated, note = _iv_for_play(152.0, market_cap_b=5000.0)
+    assert estimated is True
+    assert isinstance(iv_use, float) and 0 < iv_use < 100
+    assert note and "rejected" in note.lower()
+
+
+def test_fallback_iv_scales_inversely_with_cap():
+    assert _fallback_iv(500.0) == 35.0   # mega
+    assert _fallback_iv(50.0) == 45.0    # large
+    assert _fallback_iv(8.0) == 55.0     # mid
+    assert _fallback_iv(1.5) == 70.0     # small
+    assert _fallback_iv(None) == 60.0    # unknown
+    # Inverse relationship holds across tiers.
+    assert _fallback_iv(500.0) < _fallback_iv(50.0) < _fallback_iv(8.0) < _fallback_iv(1.5)
+
+
+def _playable_chain(price=100.0):
+    """A liquid chain ~35 DTE so generate_plays can actually emit a directional play."""
+    expiry = (datetime.today().date() + timedelta(days=35)).strftime("%Y-%m-%d")
+    chains = []
+    for strike in (90, 95, 100, 105, 110):
+        for typ in ("call", "put"):
+            chains.append({
+                "expiry": expiry, "type": typ, "strike": float(strike),
+                "bid": 2.0, "ask": 2.2, "lastPrice": 2.1,
+                "volume": 500, "openInterest": 1000, "iv": 0.45,
+            })
+    return chains
+
+
+def test_null_iv_ticker_still_generates_a_play():
+    """Core interaction fix: a NULL-IV ticker must still produce a play (via the
+    estimated fallback IV), not silently vanish."""
+    iv_use, estimated, _ = _iv_for_play(None, market_cap_b=500.0)
+    assert estimated
+    plays = generate_plays("ACME", 100.0, _playable_chain(), iv_30d=iv_use, rsi=30,
+                           price_above_sma20=True, price_above_sma50=True)
+    assert len(plays) >= 1, "NULL-IV ticker must still generate a play, not vanish"
+
+
+def test_corrupt_iv_ticker_still_generates_a_play():
+    """A rejected (corrupt-high) IV must also still produce a play, not vanish."""
+    iv_use, estimated, _ = _iv_for_play(152.0, market_cap_b=5000.0)
+    assert estimated
+    plays = generate_plays("ACME", 100.0, _playable_chain(), iv_30d=iv_use, rsi=30,
+                           price_above_sma20=True, price_above_sma50=True)
+    assert len(plays) >= 1

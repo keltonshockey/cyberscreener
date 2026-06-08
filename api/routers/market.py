@@ -15,7 +15,7 @@ import yfinance as yf
 from fastapi import APIRouter, Query, HTTPException
 
 from db.models import get_db
-from core.scanner import get_weights, _iv_is_suspect
+from core.scanner import get_weights, _iv_for_play
 from core.universe import (
     ALL_CYBER_TICKERS, ALL_ENERGY_TICKERS, ALL_DEFENSE_TICKERS, ALL_BROAD_TICKERS,
 )
@@ -346,14 +346,16 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
     results = []
     for r in rows:
         row = dict(r)
-        iv_30d = row.get("iv_30d")
-        if iv_30d is not None and iv_30d > 200:
-            logger.warning(f"IV sanity gate [killer-plays/{row["ticker"]}]: iv_30d={iv_30d}% > 200% — data-error skip")
-            continue
-        _iv_suspect, _iv_reason = _iv_is_suspect(iv_30d, row.get("market_cap_b"))
-        if _iv_suspect:
-            logger.warning(f"IV gate [killer-plays/{row['ticker']}]: skipping — {_iv_reason}")
-            continue
+        # Untrustworthy IV (NULLed by the ingestion gate, absent, or a pre-fix
+        # corrupt value) no longer drops the ticker — that hid ~19% of the
+        # universe. Surface it with an estimated IV flag instead so coverage stays
+        # visible; the play details enriched below come from generate_plays, which
+        # tolerates the estimate.
+        _iv_use, _iv_estimated, _iv_note = _iv_for_play(row.get("iv_30d"), row.get("market_cap_b"))
+        row["iv_estimated"] = _iv_estimated
+        if _iv_estimated:
+            row["iv_note"] = _iv_note
+            logger.info(f"IV estimated [killer-plays/{row['ticker']}]: {_iv_note}")
 
         rsi = row.get("rsi") or 50
         dte = row.get("days_to_earnings")

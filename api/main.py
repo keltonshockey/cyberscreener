@@ -31,7 +31,7 @@ from deps import (
 
 from core.scanner import (
     run_scan,
-    fetch_options_chain, generate_plays, fetch_ticker_data, _iv_is_suspect,
+    fetch_options_chain, generate_plays, fetch_ticker_data, _iv_for_play,
     score_long_term, score_options, get_weights, set_weights,
     DEFAULT_LT_WEIGHTS, DEFAULT_OPT_WEIGHTS,
 )
@@ -1364,17 +1364,15 @@ def _fetch_plays_background(ticker):
             return
 
         _plays_status[ticker]["message"] = f"Generating plays for {ticker}..."
-        _iv_suspect, _iv_reason = _iv_is_suspect(data.get("iv_30d"), data.get("market_cap_b"))
-        if _iv_suspect:
-            logger.warning(f"IV gate [{ticker}]: skipping plays — {_iv_reason}")
-            _plays_status[ticker] = {"running": False, "message": "done",
-                "result": {"ticker": ticker, "plays": [], "price": data.get("price"),
-                           "iv_data_quality": "suspect", "error": _iv_reason}}
-            return
+        # Untrustworthy IV (NULLed by the ingestion gate, absent, or pre-fix
+        # corrupt) no longer drops the ticker — estimate from cap tier and flag it.
+        _iv_use, _iv_estimated, _iv_note = _iv_for_play(data.get("iv_30d"), data.get("market_cap_b"))
+        if _iv_estimated:
+            logger.info(f"IV estimated [{ticker}]: {_iv_note}")
         plays = generate_plays(
             ticker=ticker, price=data["price"], chains=chains,
             days_to_earnings=data.get("days_to_earnings"),
-            rsi=data.get("rsi", 50), iv_30d=data.get("iv_30d"),
+            rsi=data.get("rsi", 50), iv_30d=_iv_use,
             price_above_sma20=data.get("price_above_sma20", True),
             price_above_sma50=data.get("price_above_sma50", True),
             perf_3m=data.get("perf_3m", 0),
@@ -1425,6 +1423,7 @@ def _fetch_plays_background(ticker):
             "ticker": ticker, "price": data["price"],
             "rsi": data.get("rsi"), "iv_30d": data.get("iv_30d"),
             "iv_rank": data.get("iv_rank"),
+            "iv_estimated": _iv_estimated, "iv_note": _iv_note,
             "days_to_earnings": data.get("days_to_earnings"),
             "beta": data.get("beta"), "perf_3m": data.get("perf_3m"),
             "bb_width": data.get("bb_width"), "vol_ratio": data.get("vol_ratio"),
@@ -1450,7 +1449,7 @@ def get_top_plays(limit: int = Query(5, ge=1, le=15)):
 
     rows = conn.execute("""
         SELECT ticker, price, opt_score, lt_score, rsi, iv_30d, days_to_earnings,
-               bb_width, vol_ratio, beta, perf_3m, pct_from_52w_high
+               bb_width, vol_ratio, beta, perf_3m, pct_from_52w_high, market_cap_b
         FROM scores WHERE scan_id = ? ORDER BY opt_score DESC LIMIT ?
     """, (scan["id"], limit)).fetchall()
     conn.close()
@@ -1464,16 +1463,13 @@ def get_top_plays(limit: int = Query(5, ge=1, le=15)):
             if not chains:
                 results.append({"ticker": ticker, "opt_score": row["opt_score"], "plays": [], "error": "No options chain"})
                 continue
-            _iv_s, _iv_r = _iv_is_suspect(row.get("iv_30d"), row.get("market_cap_b"))
-            if _iv_s:
-                logger.warning(f"IV gate batch [{ticker}]: {_iv_r}")
-                results.append({"ticker": ticker, "opt_score": row["opt_score"],
-                                 "plays": [], "iv_data_quality": "suspect", "error": _iv_r})
-                continue
+            _iv_use, _iv_estimated, _iv_note = _iv_for_play(row.get("iv_30d"), row.get("market_cap_b"))
+            if _iv_estimated:
+                logger.info(f"IV estimated batch [{ticker}]: {_iv_note}")
             plays = generate_plays(
                 ticker=ticker, price=row["price"], chains=chains,
                 days_to_earnings=row.get("days_to_earnings"),
-                rsi=row.get("rsi", 50), iv_30d=row.get("iv_30d"),
+                rsi=row.get("rsi", 50), iv_30d=_iv_use,
                 price_above_sma20=True, price_above_sma50=True,
                 perf_3m=row.get("perf_3m", 0),
                 lt_score=row.get("lt_score", 0),
@@ -1482,6 +1478,7 @@ def get_top_plays(limit: int = Query(5, ge=1, le=15)):
             results.append({
                 "ticker": ticker, "opt_score": row["opt_score"], "lt_score": row["lt_score"],
                 "price": row["price"], "plays": plays, "play_count": len(plays),
+                "iv_estimated": _iv_estimated, "iv_note": _iv_note,
             })
             time.sleep(0.3)
         except Exception as e:
@@ -1544,15 +1541,13 @@ def get_plays_for_ticker(ticker: str):
         chains = fetch_options_chain(ticker)
         if not chains:
             return {"ticker": ticker, "plays": [], "error": "No options chain", "price": data.get("price")}
-        _iv_s2, _iv_r2 = _iv_is_suspect(data.get("iv_30d"), data.get("market_cap_b"))
-        if _iv_s2:
-            logger.warning(f"IV gate sync [{ticker}]: {_iv_r2}")
-            return {"ticker": ticker, "plays": [], "price": data.get("price"),
-                    "iv_data_quality": "suspect", "error": _iv_r2}
+        _iv_use, _iv_estimated, _iv_note = _iv_for_play(data.get("iv_30d"), data.get("market_cap_b"))
+        if _iv_estimated:
+            logger.info(f"IV estimated sync [{ticker}]: {_iv_note}")
         plays = generate_plays(
             ticker=ticker, price=data["price"], chains=chains,
             days_to_earnings=data.get("days_to_earnings"),
-            rsi=data.get("rsi", 50), iv_30d=data.get("iv_30d"),
+            rsi=data.get("rsi", 50), iv_30d=_iv_use,
             price_above_sma20=data.get("price_above_sma20", True),
             price_above_sma50=data.get("price_above_sma50", True),
             perf_3m=data.get("perf_3m", 0),
@@ -1571,6 +1566,7 @@ def get_plays_for_ticker(ticker: str):
             "ticker": ticker, "price": data["price"],
             "rsi": data.get("rsi"), "iv_30d": data.get("iv_30d"),
             "iv_rank": data.get("iv_rank"),
+            "iv_estimated": _iv_estimated, "iv_note": _iv_note,
             "days_to_earnings": data.get("days_to_earnings"),
             "beta": data.get("beta"), "perf_3m": data.get("perf_3m"),
             "bb_width": data.get("bb_width"), "vol_ratio": data.get("vol_ratio"),
