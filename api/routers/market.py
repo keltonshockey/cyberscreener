@@ -327,7 +327,8 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
         SELECT s.ticker, s.price, s.opt_score, s.lt_score, s.rsi, s.days_to_earnings,
                s.threat_score, s.outage_status, s.breach_victim, s.demand_signal,
                s.bb_width, s.vol_ratio, s.sector, s.pct_from_52w_high, s.beta,
-               s.iv_30d, s.horizon, s.recommended_expiry, s.iv_rank, s.market_cap_b
+               s.iv_30d, s.horizon, s.recommended_expiry, s.iv_rank, s.market_cap_b,
+               s.rc_score
         FROM scores s
         INNER JOIN (
             SELECT ticker, MAX(scan_id) AS max_scan_id
@@ -421,6 +422,7 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
         for result_row in results:
             bp = best_play.get(result_row["ticker"])
             if bp:
+                # play_* aliases — consumed by the dashboard/Pactum frontend
                 result_row["play_strategy"] = bp.get("strategy")
                 result_row["play_strike"] = bp.get("strike")
                 result_row["play_entry_price"] = bp.get("entry_price")
@@ -429,6 +431,21 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
                 result_row["play_expiry"] = bp.get("expiry")
                 result_row["play_rc_score"] = bp.get("rc_score")
                 result_row["play_direction"] = bp.get("direction")
+                # Canonical play contract — the forward-test journal
+                # (poll_killer_plays.py) qualifies a play only when these exact
+                # keys are non-null. entry_price IS the option premium: net debit
+                # for spreads, option mid for naked longs (scanner.generate_plays).
+                result_row["strategy"] = bp.get("strategy")
+                result_row["strike"] = bp.get("strike")
+                result_row["expiry"] = bp.get("expiry")
+                result_row["estimated_premium"] = bp.get("entry_price")
+                result_row["premium"] = bp.get("entry_price")
+                result_row["max_loss"] = bp.get("max_loss")
+                result_row["risk_reward"] = bp.get("risk_reward_ratio")
+                # Prefer the play-level RC (6-component _compute_rc) over the
+                # ticker-level proxy already on result_row from the scores join.
+                if bp.get("rc_score") is not None:
+                    result_row["rc_score"] = bp.get("rc_score")
 
     return {
         "plays": results,
