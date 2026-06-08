@@ -8,7 +8,10 @@ import os
 import json
 import hashlib
 import secrets
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("CYBERSCREENER_DB", "/app/data/cyberscreener.db")
 
@@ -60,6 +63,16 @@ def _migrate_scores_table(conn):
         ("opt_breakdown", "TEXT"),
         ("short_delta", "REAL"),  # P5: change in short interest over 60d
         ("rc_score", "INTEGER"),
+        # Sector/threat context columns. These exist in prod (added by historical
+        # ALTERs) and are written by save_scan's INSERT, but were missing from this
+        # migration list — so a scores table built purely from init_db lacked them.
+        ("sector", "TEXT DEFAULT 'cyber'"),
+        ("subsector", "TEXT"),
+        ("scoring_profile", "TEXT DEFAULT 'saas'"),
+        ("threat_score", "REAL DEFAULT 100"),
+        ("outage_status", "TEXT DEFAULT 'none'"),
+        ("breach_victim", "INTEGER DEFAULT 0"),
+        ("demand_signal", "INTEGER DEFAULT 0"),
     ]
 
     for col_name, col_type in new_columns:
@@ -75,9 +88,6 @@ def _migrate_scores_table(conn):
 def init_db():
     """Initialize all tables + migrate schema if needed."""
     conn = get_db()
-
-    # ── Schema migration: add new v2 columns to existing scores table ──
-    _migrate_scores_table(conn)
 
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS scans (
@@ -224,6 +234,12 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_watchlist_ticker ON watchlist(ticker);
     """)
 
+    # ── Schema migration: backfill v2+ columns on the scores table. Runs AFTER the
+    # CREATE TABLE IF NOT EXISTS above (the old order ran it first and no-op'd on a
+    # not-yet-existing table), so a freshly created DB also gets every column that
+    # save_scan's INSERT writes — keeping code and schema in agreement. ──
+    _migrate_scores_table(conn)
+
     conn.commit()
     conn.close()
 
@@ -239,7 +255,13 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
     )
     scan_id = cursor.lastrowid
 
+    failed_rows = 0
     for r in results:
+      # Guardrail: a single malformed row (e.g. a column/value-count mismatch like
+      # the rc_score off-by-one that froze scans at #1412) must not silently drop the
+      # entire scan. Log loudly with the offending row + value count, count it, and
+      # keep persisting the rest so the scan still commits what it can.
+      try:
         # Save score record
         lt_breakdown = json.dumps(r.get("lt_breakdown", {}))
         opt_breakdown = json.dumps(r.get("opt_breakdown", {}))
@@ -281,7 +303,7 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 ?,?,
                 ?,?,?,
                 ?,?,?,?,
-                ?
+                ?,?
             )
         """, (
             scan_id, r["ticker"], r.get("price"), r.get("market_cap_b"),
@@ -329,6 +351,30 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
             conn.execute(
                 "INSERT INTO signals (scan_id, ticker, signal_type, signal_text, impact) VALUES (?, ?, ?, ?, ?)",
                 (scan_id, r["ticker"], "score", reason, impact)
+            )
+      except Exception as row_err:
+        failed_rows += 1
+        logger.error(
+            "save_scan: dropping row for %s in scan #%s — %s (values supplied: %d)",
+            r.get("ticker", "?"), scan_id, row_err, len(r),
+        )
+
+    if failed_rows:
+        logger.error(
+            "save_scan: scan #%s persisted %d/%d rows — %d FAILED (see errors above)",
+            scan_id, len(results) - failed_rows, len(results), failed_rows,
+        )
+        # A total wipeout is systemic (e.g. an INSERT column/value-count mismatch
+        # after a schema change), not one bad ticker. Don't commit a hollow scan —
+        # it would bump scan_id and make /health look fresh while holding zero
+        # scores, hiding the very failure class that froze scans at #1412. Roll the
+        # whole scan back and raise so it surfaces loudly instead.
+        if results and failed_rows == len(results):
+            conn.rollback()
+            conn.close()
+            raise RuntimeError(
+                f"save_scan: ALL {len(results)} rows failed to persist for scan "
+                f"#{scan_id} — rolled back (likely scores INSERT column/value mismatch)"
             )
 
     # Momentum detection — compare new scores to previous scan
