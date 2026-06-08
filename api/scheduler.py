@@ -100,7 +100,7 @@ def _prewarm_killer_plays():
             ) latest ON s.ticker = latest.ticker AND s.scan_id = latest.max_scan_id
             WHERE (s.opt_score >= 45 OR s.lt_score >= 55)
             ORDER BY combined DESC
-            LIMIT 6
+            LIMIT 12
         """).fetchall()
         conn.close()
         tickers = [r[0] for r in rows]

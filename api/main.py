@@ -1392,7 +1392,12 @@ def _fetch_plays_background(ticker):
             play["rc_score"] = rc
             play["rc_breakdown"] = rc_result["breakdown"]
             scored_plays.append(play)
-            if rc >= 70:
+            # Persist any play the forward-test journal would accept (its floor
+            # is rc >= 50). Previously gated at 70, so rc 50-69 qualifying plays
+            # were generated but never written to options_plays → never surfaced
+            # by /killer-plays → journal logged appended=0. The RC >= 80 email
+            # alert (nested below) is unchanged.
+            if rc >= 50:
                 try:
                     log_play(
                         ticker=ticker,
