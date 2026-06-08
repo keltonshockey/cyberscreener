@@ -294,8 +294,8 @@ def fetch_ticker_data(ticker):
                     calls = calls_df
                     puts = puts_df
                 fetched_chains = [("schwab", _MockChain())]
-                if not calls_df.empty and "impliedVolatility" in calls_df.columns:
-                    iv_30d = round(float(calls_df["impliedVolatility"].median() * 100), 1)
+                # ATM-windowed IV (not median over all strikes — that is ~2-3x inflated)
+                iv_30d = _atm_iv_pct(calls_df, puts_df, price)
             except Exception as _se:
                 logger.warning(f"Schwab chain parse failed for {ticker}: {_se}")
                 fetched_chains = []
@@ -320,10 +320,10 @@ def fetch_ticker_data(ticker):
             if fetched_chains:
                 try:
                     _, nearest_chain = fetched_chains[0]
-                    calls = nearest_chain.calls
-                    if not calls.empty and 'impliedVolatility' in calls.columns:
-                        current_iv = float(calls['impliedVolatility'].median() * 100)
-                        iv_30d = round(current_iv, 1)
+                    # ATM-windowed IV (not median over all strikes — that is ~2-3x inflated)
+                    iv_30d = _atm_iv_pct(nearest_chain.calls, nearest_chain.puts, price)
+                    if iv_30d is not None:
+                        current_iv = iv_30d
                         # P1: Real IV rank from stored history (≥30 obs); fallback synthetic
                         iv_rank = None
                         if DB_HISTORY_AVAILABLE:
@@ -373,6 +373,21 @@ def fetch_ticker_data(ticker):
             except Exception:
                 pass
 
+        # ── IV SANITY GATE (at ingestion) ──
+        # Reject implausible iv_30d at the source so corrupt values never reach
+        # iv_context scoring or the option-pricing proxy. NULL (honest) instead of
+        # clamping (which invents data). iv_suspect=True means we *had* a value and
+        # rejected it — a value that was simply absent stays iv_suspect=False.
+        iv_suspect = False
+        if iv_30d is not None:
+            _mcb = round(market_cap / 1e9, 1) if market_cap else None
+            _suspect, _iv_reason = _iv_is_suspect(iv_30d, _mcb)
+            if _suspect:
+                logger.info(f"IV suspect for {ticker}: {_iv_reason} — NULLing iv_30d/iv_rank")
+                iv_30d = None
+                iv_rank = None
+                iv_suspect = True
+
         return {
             "ticker": ticker,
             "price": round(price, 2),
@@ -404,6 +419,7 @@ def fetch_ticker_data(ticker):
             "price_52w_low": round(price_52w_low, 2),
             "iv_30d": iv_30d,
             "iv_rank": iv_rank,
+            "iv_suspect": iv_suspect,
             "days_to_earnings": days_to_earnings,
             "price_above_sma20": price > sma_20,
             "price_above_sma50": price > sma_50 if sma_50 else None,
@@ -1024,7 +1040,7 @@ def score_options(row, weights=None):
     dte = row.get("days_to_earnings")
 
     # ── 1. IV CONTEXT (IV Rank, not raw IV) ──
-    iv = row.get("iv_30d") or 0
+    iv_raw = row.get("iv_30d")  # None when absent OR rejected by the ingestion sanity gate
     ivr = row.get("iv_rank")
 
     if ivr is not None:
@@ -1041,8 +1057,15 @@ def score_options(row, weights=None):
             raw = 0.5
         else:
             raw = 0.3  # Mid-range IV — not ideal for either
+    elif iv_raw is None:
+        # No trustworthy IV (missing or NULLed by the ingestion sanity gate).
+        # Score NEUTRAL — do NOT treat absent IV as 0, which would read as
+        # "cheap options, good for buying" and over-reward a data hole.
+        raw = 0.3
+        reasons.append("⚪ IV unavailable — neutral IV context")
     else:
         # Fall back to raw IV
+        iv = iv_raw
         if iv > 60:
             raw = 0.7
             reasons.append(f"🌋 High IV ({iv:.0f}%) — volatility play")
@@ -1053,7 +1076,7 @@ def score_options(row, weights=None):
 
     pts = _score_component(raw, w["iv_context"])
     breakdown["iv_context"] = {"points": pts, "max": w["iv_context"],
-                                "raw_value": ivr if ivr is not None else iv, "raw": round(raw, 4)}
+                                "raw_value": ivr if ivr is not None else iv_raw, "raw": round(raw, 4)}
     score += pts
 
     # ── 3. DIRECTIONAL CONVICTION ──
@@ -1375,16 +1398,125 @@ def find_best_expiry(chains, days_to_earnings=None):
 
 
 def _iv_is_suspect(iv_30d, market_cap_b=None) -> tuple:
-    """Returns (is_suspect: bool, reason: str). Gate bad IV before play generation."""
+    """Returns (is_suspect: bool, reason: str). Tiered, cap-aware sanity bounds on 30d IV.
+
+    Stored iv_30d is corrupt at scale (2026-06-08 analysis: 31% of scan #1412 rows
+    >100%, mega-cap tier mean ~100%). Two complementary fixes ship together: the
+    derivation now uses ATM-windowed IV (see _atm_iv_pct), and this gate rejects
+    values that remain implausible. The ceiling scales with market cap because a
+    mega-cap physically cannot sustain triple-digit IV while a micro/small-cap
+    legitimately can — so the rule must reject *data errors* without nuking
+    *legitimately* high IV. Thresholds are set with margin from the per-cap-tier
+    distribution (see code-sessions/results/RESULT_IV_INGEST_2026-06-08.md).
+
+    On a hit the caller NULLs iv_30d (+ flags iv_suspect) rather than clamping —
+    persisting NULL is honest; clamping invents data and biases scoring.
+    """
     if iv_30d is None:
         return True, "IV_30d is None"
     if iv_30d < 1.0:
         return True, f"IV_30d={iv_30d:.1f}% below 1% — likely bad data"
-    if iv_30d > 200.0 and market_cap_b is not None and market_cap_b >= 5.0:
-        return True, f"IV_30d={iv_30d:.1f}% > 200% on large-cap ({market_cap_b:.1f}B)"
     if iv_30d > 500.0:
         return True, f"IV_30d={iv_30d:.1f}% > 500% — impossible data"
+    # Cap-aware ceiling: bigger company -> lower plausible IV.
+    if market_cap_b is not None:
+        if market_cap_b >= 100 and iv_30d > 90.0:
+            return True, f"IV_30d={iv_30d:.1f}% > 90% implausible for mega-cap ({market_cap_b:.0f}B)"
+        if market_cap_b >= 20 and iv_30d > 130.0:
+            return True, f"IV_30d={iv_30d:.1f}% > 130% implausible for large-cap ({market_cap_b:.0f}B)"
+        if market_cap_b >= 5 and iv_30d > 170.0:
+            return True, f"IV_30d={iv_30d:.1f}% > 170% implausible for mid-cap ({market_cap_b:.0f}B)"
+    # Small/micro/unknown cap: high IV can be real here — reject only the
+    # physically-impossible tail.
+    if iv_30d > 300.0:
+        return True, f"IV_30d={iv_30d:.1f}% > 300% — implausible even for small-cap"
     return False, ""
+
+
+def _fallback_iv(market_cap_b=None) -> float:
+    """Typical ATM 30d IV (%) by market-cap tier.
+
+    Used when the stored iv_30d is untrustworthy (NULLed by the ingestion sanity
+    gate, genuinely absent, or a pre-fix corrupt value) so a play can still be
+    generated. Mirrors the inverse cap→IV relationship the gate assumes: larger
+    caps carry lower typical IV. Deliberately conservative midpoints — the play's
+    actual pricing comes from the live per-strike chain IV, so this only feeds the
+    expected-move estimate and the high-IV strategy gating in generate_plays.
+    """
+    if market_cap_b is None:
+        return 60.0
+    if market_cap_b >= 100:
+        return 35.0
+    if market_cap_b >= 20:
+        return 45.0
+    if market_cap_b >= 5:
+        return 55.0
+    return 70.0
+
+
+def _iv_for_play(iv_30d, market_cap_b=None) -> tuple:
+    """Resolve the IV to feed play generation. Returns (iv_to_use, iv_estimated, note).
+
+    This is the downstream counterpart to the ingestion sanity gate. Previously
+    every play path called ``_iv_is_suspect`` and *skipped* the ticker on a hit —
+    but ``_iv_is_suspect(None)`` is True, so once ingestion began NULLing corrupt
+    IV (and every genuinely-absent IV), ~19% of the universe silently vanished
+    from /killer-plays and play generation. That is unacceptable: a missing IV is
+    a data hole, not a reason to hide a ticker.
+
+    Instead, when the stored IV is untrustworthy (None, or a pre-fix corrupt value
+    still in history) we substitute a cap-tier proxy and flag ``iv_estimated`` so
+    the ticker still produces a play and the estimation is visible to callers.
+    A trustworthy value passes through unchanged. generate_plays tolerates the
+    proxy (it only affects expected-move + high-IV gating); the play's per-strike
+    IV is read from the live option chain, independent of this value.
+    """
+    if iv_30d is None:
+        return _fallback_iv(market_cap_b), True, "IV unavailable — estimated from market cap"
+    suspect, reason = _iv_is_suspect(iv_30d, market_cap_b)
+    if suspect:
+        return _fallback_iv(market_cap_b), True, f"IV rejected ({reason}) — estimated from market cap"
+    return iv_30d, False, None
+
+
+def _atm_iv_pct(calls_df, puts_df, price, band=0.15):
+    """Median implied volatility (%) of liquid near-the-money strikes, or None.
+
+    Replaces the old ``median(impliedVolatility across the ENTIRE chain)`` which
+    inflated iv_30d ~2-3x: yfinance reports garbage IV (often 100-900%) on deep
+    OTM/ITM strikes, and the all-strike median is dominated by those wings (e.g.
+    NVDA read 152% vs a real ~45%). Here we keep only strikes within ±``band`` of
+    spot, drop non-sane raw IVs (<1% or >300%), prefer strikes with open interest
+    or volume, and pool calls + puts. Robust to missing columns / empty frames.
+    """
+    if not price or price <= 0:
+        return None
+    ivs = []
+    lo, hi = price * (1 - band), price * (1 + band)
+    for df in (calls_df, puts_df):
+        if df is None or getattr(df, "empty", True):
+            continue
+        if "impliedVolatility" not in df.columns or "strike" not in df.columns:
+            continue
+        near = df[(df["strike"] >= lo) & (df["strike"] <= hi)]
+        if near.empty:
+            # No strike inside the band — fall back to the 3 nearest the money.
+            near = df.assign(_d=(df["strike"] - price).abs()).nsmallest(3, "_d")
+        iv = near["impliedVolatility"]
+        sane = near[(iv > 0.01) & (iv < 3.0)]
+        if sane.empty:
+            continue
+        mask_liq = None
+        if "openInterest" in sane.columns:
+            mask_liq = sane["openInterest"].fillna(0) > 0
+        if "volume" in sane.columns:
+            v = sane["volume"].fillna(0) > 0
+            mask_liq = v if mask_liq is None else (mask_liq | v)
+        use = sane[mask_liq] if (mask_liq is not None and bool(mask_liq.any())) else sane
+        ivs.extend(float(x) for x in use["impliedVolatility"] if x == x)
+    if not ivs:
+        return None
+    return round(float(np.median(ivs)) * 100, 1)
 
 def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=None,
                    price_above_sma20=True, price_above_sma50=True, perf_3m=0,
