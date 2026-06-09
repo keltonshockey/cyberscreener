@@ -16,6 +16,7 @@ from fastapi import APIRouter, Query, HTTPException
 
 from db.models import get_db
 from core.scanner import get_weights, _iv_for_play, compute_directional_bias
+from core.quality_gates import assess as quality_assess, gated_tier, evaluate_eligibility
 from core.signals_meta import classify_signal
 from core.text import strip_emoji
 from core.universe import (
@@ -352,6 +353,11 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
     results = []
     for r in rows:
         row = dict(r)
+        # Options stack: Tier-A eligibility ONLY (liquidity/solvency hygiene). Do NOT
+        # impose the LT quality/secular/corroboration modifiers here — a tactical
+        # options setup is judged on tradability, not buy-and-hold quality.
+        if not evaluate_eligibility(row)[0]:
+            continue
         # Untrustworthy IV (NULLed by the ingestion gate, absent, or a pre-fix
         # corrupt value) no longer drops the ticker — that hid ~19% of the
         # universe. Surface it with an estimated IV flag instead so coverage stays
@@ -485,11 +491,15 @@ def get_buy_zone(limit: int = Query(8, ge=1, le=15)):
     candidates from the latest scan.
     """
     conn = get_db()
+    # Pull the quality-gate inputs too (market cap + breakdown + corroboration
+    # signals) so the LT board can apply the two-stage pipeline (core.quality_gates).
     rows = conn.execute("""
         SELECT s.ticker, s.price, s.lt_score, s.opt_score, s.rsi,
                s.days_to_earnings, s.threat_score, s.outage_status,
                s.breach_victim, s.sector, s.pct_from_52w_high, s.pe_ratio,
-               s.revenue_growth_pct, s.fcf_m, s.demand_signal
+               s.revenue_growth_pct, s.fcf_m, s.demand_signal,
+               s.market_cap_b, s.lt_breakdown, s.sentiment_bull_pct,
+               s.whale_score, s.insider_buys_30d, s.perf_3m
         FROM scores s
         INNER JOIN (
             SELECT ticker, MAX(scan_id) AS max_scan_id
@@ -502,15 +512,24 @@ def get_buy_zone(limit: int = Query(8, ge=1, le=15)):
           AND (s.breach_victim IS NULL OR s.breach_victim = 0)
         ORDER BY s.lt_score DESC
         LIMIT ?
-    """, (limit * 2,)).fetchall()
+    """, (limit * 3,)).fetchall()
     conn.close()
 
     results = []
     for r in rows:
         row = dict(r)
+        # ── Two-stage quality pipeline (LT stack: full Tier A + Tier B) ──
+        qa = quality_assess(row)
+        if not qa.eligible:
+            continue  # Tier A hard-exclude (solvency / liquidity)
         rsi = row.get("rsi") or 50
         lt = row.get("lt_score") or 0
         dte = row.get("days_to_earnings")
+        # Tier B: deflate the board score (organic-normalization + secular-decline)
+        # and cap the conviction tier (interest-corroboration). Raw lt_score untouched.
+        row["lt_board_score"] = round(lt - qa.lt_penalty, 1)
+        if qa.modifier_reasons or qa.lt_penalty:
+            row["quality_flags"] = qa.modifier_reasons
 
         # Build a plain-English reason
         if rsi <= 30:
@@ -529,15 +548,20 @@ def get_buy_zone(limit: int = Query(8, ge=1, le=15)):
         else:
             row["catalyst"] = f"Strong fundamentals · {entry_signal}"
 
-        row["combined_score"] = round((row.get("opt_score") or 0) * 0.6 + lt * 0.4, 1)
+        combined = (row.get("opt_score") or 0) * 0.6 + lt * 0.4
+        row["combined_score"] = round(combined, 1)
+        row["conviction"] = gated_tier(combined, qa)  # respects the corroboration cap
         results.append(row)
-        if len(results) >= limit:
-            break
+
+    # Rank by the gate-deflated board score so M&A-inflated / secular-decline names
+    # can't top the long-term board (the GEN value-trap fix). Raw lt_score is intact.
+    results.sort(key=lambda x: x.get("lt_board_score", x.get("lt_score") or 0), reverse=True)
+    results = results[:limit]
 
     return {
         "picks": results,
         "total": len(results),
-        "criteria": "LT ≥ 60, RSI ≤ 45, no active threats",
+        "criteria": "LT ≥ 60, RSI ≤ 45, no active threats · quality-gated (core.quality_gates)",
         "timestamp": datetime.now().isoformat(),
     }
 
