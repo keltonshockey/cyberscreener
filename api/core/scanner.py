@@ -61,6 +61,12 @@ except ImportError:
     _UNIVERSE_IMPORTED = False
 
 try:
+    from core.sector_tags import tags_for
+except ImportError:
+    def tags_for(ticker, sector=None, subsector=None):
+        return ["Tech"]
+
+try:
     from core.timing import compute_timing_intelligence
     TIMING_AVAILABLE = True
 except Exception as _timing_err:
@@ -511,15 +517,15 @@ def detect_whale_flow_from_chains(fetched_chains, current_price):
     else: whale_bias = "neutral"
 
     if unusual_calls > 0:
-        signals.append(f"🐋 {unusual_calls} unusual call{'s' if unusual_calls > 1 else ''} detected")
+        signals.append(f"{unusual_calls} unusual call{'s' if unusual_calls > 1 else ''} detected")
     if unusual_puts > 0:
-        signals.append(f"🐋 {unusual_puts} unusual put{'s' if unusual_puts > 1 else ''} detected")
+        signals.append(f"{unusual_puts} unusual put{'s' if unusual_puts > 1 else ''} detected")
     if top_flow:
         biggest = top_flow[0]
-        signals.append(f"💰 Largest flow: ${biggest['premium_total']:,.0f} in ${biggest['strike']:.0f} {biggest['type']}s ({biggest['expiry']})")
+        signals.append(f"Largest flow: ${biggest['premium_total']:,.0f} in ${biggest['strike']:.0f} {biggest['type']}s ({biggest['expiry']})")
     if pc_ratio is not None:
-        if pc_ratio > 1.5: signals.append(f"📊 High P/C ratio ({pc_ratio:.2f}) — heavy put activity")
-        elif pc_ratio < 0.5: signals.append(f"📊 Low P/C ratio ({pc_ratio:.2f}) — heavy call activity")
+        if pc_ratio > 1.5: signals.append(f"High P/C ratio ({pc_ratio:.2f}) — heavy put activity")
+        elif pc_ratio < 0.5: signals.append(f"Low P/C ratio ({pc_ratio:.2f}) — heavy call activity")
 
     whale_score = 0
     if total_unusual >= 8: whale_score += 40
@@ -661,20 +667,20 @@ def detect_whale_flow(ticker_obj, current_price, expiry_dates):
 
     # ── Build signals list ──
     if unusual_calls > 0:
-        signals.append(f"🐋 {unusual_calls} unusual call{'s' if unusual_calls > 1 else ''} detected")
+        signals.append(f"{unusual_calls} unusual call{'s' if unusual_calls > 1 else ''} detected")
     if unusual_puts > 0:
-        signals.append(f"🐋 {unusual_puts} unusual put{'s' if unusual_puts > 1 else ''} detected")
+        signals.append(f"{unusual_puts} unusual put{'s' if unusual_puts > 1 else ''} detected")
     if top_flow:
         biggest = top_flow[0]
         signals.append(
-            f"💰 Largest flow: ${biggest['premium_total']:,.0f} in "
+            f"Largest flow: ${biggest['premium_total']:,.0f} in "
             f"${biggest['strike']:.0f} {biggest['type']}s ({biggest['expiry']})"
         )
     if pc_ratio is not None:
         if pc_ratio > 1.5:
-            signals.append(f"📊 High P/C ratio ({pc_ratio:.2f}) — heavy put activity")
+            signals.append(f"High P/C ratio ({pc_ratio:.2f}) — heavy put activity")
         elif pc_ratio < 0.5:
-            signals.append(f"📊 Low P/C ratio ({pc_ratio:.2f}) — heavy call activity")
+            signals.append(f"Low P/C ratio ({pc_ratio:.2f}) — heavy call activity")
 
     # ── Compute whale score (0-100) ──
     whale_score = 0
@@ -756,7 +762,7 @@ def compute_directional_bias(rsi=50, price_above_sma20=None, price_above_sma50=N
     prior bug was that the two SMA terms in generate_plays only ever added
     *bullish* signal (price below SMA contributed nothing), structurally
     biasing the rule ~69% long in an up-trending tape and making it unable to
-    express a clean bearish thesis. Now above SMA → bull, below SMA → bear.
+    express a clean bearish thesis. Now above SMA bull, below SMA bear.
 
     RSI uses symmetric mean-reversion bands. Per HARDENING PLAY-3 the true
     extremes (>78 / <28) carry the most weight; the mild 65-72 / 28-35 bands
@@ -868,18 +874,18 @@ def score_long_term(row, weights=None):
 
     if rule_of_40 >= 60:
         raw = 1.0
-        reasons.append(f"🚀 Rule of 40: {rule_of_40:.0f} (elite — {rg:.0f}% growth + {margin:.0f}% margin)")
+        reasons.append(f"Rule of 40: {rule_of_40:.0f} (elite — {rg:.0f}% growth + {margin:.0f}% margin)")
     elif rule_of_40 >= 40:
         raw = 0.7 + 0.3 * ((rule_of_40 - 40) / 20)
-        reasons.append(f"✅ Rule of 40: {rule_of_40:.0f} (passing — {rg:.0f}% growth + {margin:.0f}% margin)")
+        reasons.append(f"Rule of 40: {rule_of_40:.0f} (passing — {rg:.0f}% growth + {margin:.0f}% margin)")
     elif rule_of_40 >= 25:
         raw = 0.3 + 0.4 * ((rule_of_40 - 25) / 15)
-        reasons.append(f"📊 Rule of 40: {rule_of_40:.0f} (below threshold)")
+        reasons.append(f"Rule of 40: {rule_of_40:.0f} (below threshold)")
     elif rule_of_40 >= 0:
         raw = 0.1 + 0.2 * (rule_of_40 / 25)
     else:
         raw = 0
-        reasons.append(f"⚠️ Rule of 40: {rule_of_40:.0f} (negative — shrinking inefficiently)")
+        reasons.append(f"Rule of 40: {rule_of_40:.0f} (negative — shrinking inefficiently)")
 
     pts = _score_component(raw, w["rule_of_40"])
     breakdown["rule_of_40"] = {"points": pts, "max": w["rule_of_40"], "raw_value": round(rule_of_40, 1), "raw": round(raw, 4)}
@@ -894,10 +900,10 @@ def score_long_term(row, weights=None):
 
     if ev_rev < 3 and rg > 10:
         raw = 1.0
-        reasons.append(f"💎 Deep value: {ev_rev:.1f}x EV/Rev with {rg:.0f}% growth")
+        reasons.append(f"Deep value: {ev_rev:.1f}x EV/Rev with {rg:.0f}% growth")
     elif val_ratio < 0.3 and ev_rev < 15:
         raw = 0.85
-        reasons.append(f"✅ Fair value: {ev_rev:.1f}x EV/Rev for {rg:.0f}% growth")
+        reasons.append(f"Fair value: {ev_rev:.1f}x EV/Rev for {rg:.0f}% growth")
     elif val_ratio < 0.5 and ev_rev < 20:
         raw = 0.75
     elif val_ratio < 0.8 and ev_rev < 25:
@@ -911,7 +917,7 @@ def score_long_term(row, weights=None):
     else:
         raw = max(0, 0.15 - (ev_rev - 20) / 100)
         if ev_rev > 30:
-            reasons.append(f"💸 Expensive: {ev_rev:.1f}x EV/Rev")
+            reasons.append(f"Expensive: {ev_rev:.1f}x EV/Rev")
 
     pts = _score_component(raw, w["valuation"])
     breakdown["valuation"] = {"points": pts, "max": w["valuation"], "raw_value": round(ev_rev, 1), "raw": round(raw, 4)}
@@ -924,7 +930,7 @@ def score_long_term(row, weights=None):
     if fcf_margin is not None:
         if fcf_margin >= 25:
             raw = 1.0
-            reasons.append(f"💵 Excellent FCF margin ({fcf_margin:.0f}%)")
+            reasons.append(f"Excellent FCF margin ({fcf_margin:.0f}%)")
         elif fcf_margin >= 15:
             raw = 0.7 + 0.3 * ((fcf_margin - 15) / 10)
         elif fcf_margin >= 5:
@@ -934,7 +940,7 @@ def score_long_term(row, weights=None):
         else:
             raw = 0
             if fcf_margin < -10:
-                reasons.append(f"🔴 Cash burn: FCF margin {fcf_margin:.0f}%")
+                reasons.append(f"Cash burn: FCF margin {fcf_margin:.0f}%")
     else:
         # Fall back to absolute FCF with size-awareness
         rev_b = row.get("revenue_b") or 1
@@ -990,9 +996,9 @@ def score_long_term(row, weights=None):
         raw = 0.5
 
     if trend_signals >= 3:
-        reasons.append("📈 Strong uptrend (above all SMAs)")
+        reasons.append("Strong uptrend (above all SMAs)")
     elif trend_signals <= -1:
-        reasons.append("📉 Below key moving averages — weak trend")
+        reasons.append("Below key moving averages — weak trend")
 
     pts = _score_component(raw, w["trend"])
     breakdown["trend"] = {"points": pts, "max": w["trend"], "raw_value": round(trend_score, 1), "raw": round(raw, 4)}
@@ -1007,7 +1013,7 @@ def score_long_term(row, weights=None):
         quality_raw += 0.4
         if pe and 10 < pe < 40:
             quality_raw += 0.2
-            reasons.append(f"✅ Profitable: P/E {pe:.0f}")
+            reasons.append(f"Profitable: P/E {pe:.0f}")
         elif pe and pe > 0:
             quality_raw += 0.1
     elif rg > 30:
@@ -1039,9 +1045,9 @@ def score_long_term(row, weights=None):
         discount_raw = 0.6
         if perf_1m > 0:
             discount_raw = 1.0
-            reasons.append(f"🏷️ Down {abs(disc):.0f}% from high but rebounding (+{perf_1m:.0f}% this month)")
+            reasons.append(f"Down {abs(disc):.0f}% from high but rebounding (+{perf_1m:.0f}% this month)")
         else:
-            reasons.append(f"🏷️ Down {abs(disc):.0f}% from high — potential value or value trap")
+            reasons.append(f"Down {abs(disc):.0f}% from high — potential value or value trap")
     elif disc < -15:
         discount_raw = 0.4
         if perf_1m > 0:
@@ -1055,25 +1061,25 @@ def score_long_term(row, weights=None):
         # Near/at highs — momentum strength matters most here.
         if perf_3m > 10:
             discount_raw = 1.0
-            reasons.append(f"💪 Near highs with strong momentum (+{perf_3m:.0f}% 3m)")
+            reasons.append(f"Near highs with strong momentum (+{perf_3m:.0f}% 3m)")
         elif perf_3m > 0:
             discount_raw = 0.65
         else:
             discount_raw = 0.3
 
     # P5: Short interest delta modifier
-    # Covering shorts (negative delta) = squeeze setup → boost score
-    # Shorts piling in (positive delta) = headwind → reduce score
+    # Covering shorts (negative delta) = squeeze setup boost score
+    # Shorts piling in (positive delta) = headwind reduce score
     short_delta = row.get("short_delta")
     if short_delta is not None:
         if short_delta < -5:
             discount_raw = min(1.0, discount_raw + 0.20)
-            reasons.append(f"🔻 Shorts covering ({short_delta:+.1f}pp 60d) — squeeze setup")
+            reasons.append(f"Shorts covering ({short_delta:+.1f}pp 60d) — squeeze setup")
         elif short_delta < -2:
             discount_raw = min(1.0, discount_raw + 0.10)
         elif short_delta > 5:
             discount_raw = max(0, discount_raw - 0.15)
-            reasons.append(f"📈 Shorts building ({short_delta:+.1f}pp 60d) — headwind")
+            reasons.append(f"Shorts building ({short_delta:+.1f}pp 60d) — headwind")
         elif short_delta > 2:
             discount_raw = max(0, discount_raw - 0.07)
 
@@ -1116,12 +1122,12 @@ def score_options(row, weights=None):
         # IV Rank tells us if IV is cheap or expensive vs its own history
         if ivr < 20:
             raw = 0.9  # IV is historically low — options are cheap (good for buying)
-            reasons.append(f"🟢 IV Rank {ivr:.0f}% — options cheap, good for buying premium")
+            reasons.append(f"IV Rank {ivr:.0f}% — options cheap, good for buying premium")
         elif ivr < 40:
             raw = 0.6
         elif ivr > 80:
             raw = 0.8  # Very high IV — good for selling premium
-            reasons.append(f"🔴 IV Rank {ivr:.0f}% — options expensive, good for selling premium")
+            reasons.append(f"IV Rank {ivr:.0f}% — options expensive, good for selling premium")
         elif ivr > 60:
             raw = 0.5
         else:
@@ -1131,13 +1137,13 @@ def score_options(row, weights=None):
         # Score NEUTRAL — do NOT treat absent IV as 0, which would read as
         # "cheap options, good for buying" and over-reward a data hole.
         raw = 0.3
-        reasons.append("⚪ IV unavailable — neutral IV context")
+        reasons.append("IV unavailable — neutral IV context")
     else:
         # Fall back to raw IV
         iv = iv_raw
         if iv > 60:
             raw = 0.7
-            reasons.append(f"🌋 High IV ({iv:.0f}%) — volatility play")
+            reasons.append(f"High IV ({iv:.0f}%) — volatility play")
         elif iv > 40:
             raw = 0.4
         else:
@@ -1171,10 +1177,10 @@ def score_options(row, weights=None):
 
     if total_conviction >= 4:
         raw = 1.0
-        reasons.append(f"💪 Strong {direction} conviction (RSI {rsi:.0f}, {'above' if above_sma20 else 'below'} SMA20, vol {vr:.1f}x)")
+        reasons.append(f"Strong {direction} conviction (RSI {rsi:.0f}, {'above' if above_sma20 else 'below'} SMA20, vol {vr:.1f}x)")
     elif total_conviction >= 3:
         raw = 0.7
-        reasons.append(f"📊 Moderate {direction} lean")
+        reasons.append(f"Moderate {direction} lean")
     elif total_conviction >= 2:
         raw = 0.4
     else:
@@ -1192,7 +1198,7 @@ def score_options(row, weights=None):
     # BB squeeze (potential breakout)
     if bb < 8:
         tech_raw += 0.5
-        reasons.append(f"🗜️ Tight BB squeeze ({bb:.1f}%) — breakout imminent")
+        reasons.append(f"Tight BB squeeze ({bb:.1f}%) — breakout imminent")
     elif bb < 12:
         tech_raw += 0.3
     elif bb < 15:
@@ -1202,9 +1208,9 @@ def score_options(row, weights=None):
     if rsi < 25 or rsi > 80:
         tech_raw += 0.35
         if rsi < 25:
-            reasons.append(f"🟢 Deeply oversold RSI ({rsi:.0f})")
+            reasons.append(f"Deeply oversold RSI ({rsi:.0f})")
         else:
-            reasons.append(f"🔴 Extremely overbought RSI ({rsi:.0f})")
+            reasons.append(f"Extremely overbought RSI ({rsi:.0f})")
     elif rsi < 35 or rsi > 70:
         tech_raw += 0.2
 
@@ -1230,7 +1236,7 @@ def score_options(row, weights=None):
         raw = 0.3
     else:
         raw = 0.1
-        reasons.append("⚠️ Small cap — options may have wide spreads")
+        reasons.append("Small cap — options may have wide spreads")
 
     pts = _score_component(raw, w["liquidity"])
     breakdown["liquidity"] = {"points": pts, "max": w["liquidity"],
@@ -1247,24 +1253,24 @@ def score_options(row, weights=None):
     # Short squeeze potential
     if short_pct > 15:
         asym_raw += 0.3
-        reasons.append(f"📌 High short interest ({short_pct:.0f}%) — squeeze potential")
+        reasons.append(f"High short interest ({short_pct:.0f}%) — squeeze potential")
     elif short_pct > 8:
         asym_raw += 0.15
 
     # Beta amplification
     if beta_val > 1.8:
         asym_raw += 0.2
-        reasons.append(f"⚡ High beta ({beta_val:.1f}) — amplified moves")
+        reasons.append(f"High beta ({beta_val:.1f}) — amplified moves")
     elif beta_val > 1.3:
         asym_raw += 0.1
 
     # Whale flow integration — this is the big new signal
     if whale_score_raw >= 50:
         asym_raw += 0.5
-        reasons.append(f"🐋 Strong whale flow (score {whale_score_raw}) — institutional positioning detected")
+        reasons.append(f"Strong whale flow (score {whale_score_raw}) — institutional positioning detected")
     elif whale_score_raw >= 30:
         asym_raw += 0.3
-        reasons.append(f"🐋 Moderate whale activity (score {whale_score_raw})")
+        reasons.append(f"Moderate whale activity (score {whale_score_raw})")
     elif whale_score_raw >= 10:
         asym_raw += 0.15
 
@@ -1286,10 +1292,10 @@ def score_options(row, weights=None):
     base_score = round(score, 1)
     if dte is not None and 3 <= dte <= 14:
         mult = 1.3
-        reasons.append(f"🎯 Earnings in {dte} days — prime window (score ×1.3)")
+        reasons.append(f"Earnings in {dte} days — prime window (score ×1.3)")
     elif dte is not None and 14 < dte <= 30:
         mult = 1.1
-        reasons.append(f"📅 Earnings in {dte} days — building toward catalyst (score ×1.1)")
+        reasons.append(f"Earnings in {dte} days — building toward catalyst (score ×1.1)")
     else:
         mult = 1.0
     score = min(100.0, base_score * mult)
@@ -1482,7 +1488,7 @@ def _fallback_iv(market_cap_b=None) -> float:
 
     Used when the stored iv_30d is untrustworthy (NULLed by the ingestion sanity
     gate, genuinely absent, or a pre-fix corrupt value) so a play can still be
-    generated. Mirrors the inverse cap→IV relationship the gate assumes: larger
+    generated. Mirrors the inverse capIV relationship the gate assumes: larger
     caps carry lower typical IV. Deliberately conservative midpoints — the play's
     actual pricing comes from the live per-strike chain IV, so this only feeds the
     expected-move estimate and the high-IV strategy gating in generate_plays.
@@ -1586,7 +1592,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
     # whose two SMA terms only ever added *bullish* signal (a stock below its
     # SMAs contributed nothing toward bearish), so an overbought name in an
     # up-trend tied to neutral or stayed bullish and emitted a Long Call under a
-    # "bearish" label. Now below SMA → bear, and this is the same calc that
+    # "bearish" label. Now below SMA bear, and this is the same calc that
     # produced the score and the killer-plays label, so the three agree.
     bias, bullish_signals, bearish_signals, _dir_conviction = compute_directional_bias(
         rsi=rsi,
@@ -1613,7 +1619,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
             pct_to_breakeven = ((breakeven / price) - 1) * 100
 
             plays.append({
-                "strategy": "Long Call", "emoji": "📈", "direction": "Bullish",
+                "strategy": "Long Call", "emoji": "", "direction": "Bullish",
                 "action": f"BUY {ticker} ${strike_opt['strike']:.0f} Call",
                 "expiry": expiry, "dte": dte, "strike": strike_opt["strike"],
                 "entry_price": round(mid_price, 2),
@@ -1638,7 +1644,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
             max_loss = mid_price * 100
 
             plays.append({
-                "strategy": "Long Put", "emoji": "📉", "direction": "Bearish",
+                "strategy": "Long Put", "emoji": "", "direction": "Bearish",
                 "action": f"BUY {ticker} ${strike_opt['strike']:.0f} Put",
                 "expiry": expiry, "dte": dte, "strike": strike_opt["strike"],
                 "entry_price": round(mid_price, 2),
@@ -1668,7 +1674,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
             move_needed = (total_premium / price) * 100
 
             plays.append({
-                "strategy": "Straddle", "emoji": "🎯", "direction": "Neutral (big move expected)",
+                "strategy": "Straddle", "emoji": "", "direction": "Neutral (big move expected)",
                 "action": f"BUY {ticker} ${atm_call['strike']:.0f} Call + ${atm_put['strike']:.0f} Put",
                 "expiry": expiry, "dte": dte, "strike": f"{atm_call['strike']:.0f}",
                 "entry_price": round(total_premium, 2),
@@ -1697,7 +1703,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
                 move_needed_down = (1 - (otm_put["strike"] - total_premium) / price) * 100
 
                 plays.append({
-                    "strategy": "Strangle", "emoji": "🎲", "direction": "Neutral (big move expected)",
+                    "strategy": "Strangle", "emoji": "", "direction": "Neutral (big move expected)",
                     "action": f"BUY {ticker} ${otm_call['strike']:.0f} Call + ${otm_put['strike']:.0f} Put",
                     "expiry": expiry, "dte": dte,
                     "strike": f"{otm_put['strike']:.0f}/{otm_call['strike']:.0f}",
@@ -1730,7 +1736,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
                 reward_risk = max_profit / max_loss_val if max_loss_val > 0 else 0
 
                 plays.append({
-                    "strategy": "Bull Call Spread", "emoji": "📊",
+                    "strategy": "Bull Call Spread", "emoji": "",
                     "direction": "Bullish (defined risk)",
                     "action": f"BUY {ticker} ${long_call['strike']:.0f}C / SELL ${short_call['strike']:.0f}C",
                     "expiry": expiry, "dte": dte,
@@ -1764,7 +1770,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
                 reward_risk = max_profit / max_loss_val if max_loss_val > 0 else 0
 
                 plays.append({
-                    "strategy": "Bear Put Spread", "emoji": "📊",
+                    "strategy": "Bear Put Spread", "emoji": "",
                     "direction": "Bearish (defined risk)",
                     "action": f"BUY {ticker} ${long_put['strike']:.0f}P / SELL ${short_put['strike']:.0f}P",
                     "expiry": expiry, "dte": dte,
@@ -1797,7 +1803,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
                     breakeven_val = short_put["strike"] - net_credit
 
                     plays.append({
-                        "strategy": "Bull Put Credit Spread", "emoji": "💰",
+                        "strategy": "Bull Put Credit Spread", "emoji": "",
                         "direction": "Neutral-to-bullish (sell premium)",
                         "action": f"SELL {ticker} ${short_put['strike']:.0f}P / BUY ${long_put['strike']:.0f}P",
                         "expiry": expiry, "dte": dte,
@@ -1846,7 +1852,7 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
                 rr_ic = max_profit / max_loss_val if max_loss_val > 0 else 0
 
                 plays.append({
-                    "strategy": "Iron Condor", "emoji": "🦅",
+                    "strategy": "Iron Condor", "emoji": "",
                     "direction": "Neutral (sell premium both sides)",
                     "action": (f"SELL {ticker} ${short_put['strike']:.0f}P/${long_put['strike']:.0f}P + "
                                f"${short_call['strike']:.0f}C/${long_call['strike']:.0f}C"),
@@ -1944,7 +1950,7 @@ def _enrich_play_metrics(play, price, iv_30d, expected_move):
         # Use IV as proxy — higher IV = typically wider spreads
         iv_val = play.get("iv", 30)
         if iv_val > 80:
-            play["bid_ask_spread_pct"] = 12.0  # high IV → wide spreads
+            play["bid_ask_spread_pct"] = 12.0  # high IV wide spreads
         elif iv_val > 50:
             play["bid_ask_spread_pct"] = 7.0
         else:
@@ -1988,9 +1994,9 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
         from intel.news_intel import score_ticker_threat_context as _score_threat
         _warm_threat_caches(all_tickers=set(tickers))
         _NEWS_INTEL_AVAILABLE = True
-        logger.info("✅ Threat intel caches warmed")
+        logger.info("Threat intel caches warmed")
     except Exception as _nie:
-        logger.warning(f"⚠️ News intel unavailable: {_nie}")
+        logger.warning(f"News intel unavailable: {_nie}")
 
     results = []
     for i, ticker in enumerate(tickers):
@@ -2120,6 +2126,8 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
             data["sector"] = meta.get("sector", "cyber")
             data["subsector"] = meta.get("subsector", "")
             data["scoring_profile"] = meta.get("scoring_profile", "saas")
+            # Multi-tag taxonomy (§4) — persisted so the UI chips are real.
+            data["sector_tags"] = tags_for(ticker, data["sector"], data["subsector"])
             try:
                 data["rc_score"] = _compute_ticker_rc(data)
                 logger.info(f"RC {ticker}: {data['rc_score']}")

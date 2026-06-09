@@ -1,8 +1,8 @@
 -- Real production schema for the `scans` + `scores` tables, captured read-only
 -- from the droplet (/app/data/cyberscreener.db) on 2026-06-08. Used by
 -- test_scan_persist.py to exercise save_scan() against the true production shape
--- (67 data columns incl. rc_score) rather than the legacy CREATE TABLE in
--- models.py, which predates the migrate_*.py column additions.
+-- (68 data columns incl. rc_score + sector_tags) rather than the legacy CREATE
+-- TABLE in models.py, which predates the migrate_*.py column additions.
 
 CREATE TABLE scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,6 +83,7 @@ CREATE TABLE scores (
     short_delta REAL,
     rc_score INTEGER,
     iv_suspect INTEGER DEFAULT 0,  -- added by the iv-ingestion sanity migration (this PR)
+    sector_tags TEXT,              -- added by the sector-taxonomy migration (§4)
     FOREIGN KEY (scan_id) REFERENCES scans(id)
 );
 
@@ -103,5 +104,9 @@ CREATE TABLE signals (
     ticker TEXT NOT NULL,
     signal_type TEXT,
     signal_text TEXT,
-    impact TEXT
+    impact TEXT,
+    stack TEXT,            -- §6b relevance metadata (signal-metadata migration)
+    polarity TEXT,
+    sector_context TEXT,
+    dedupe_key TEXT
 );
