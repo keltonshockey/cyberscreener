@@ -34,6 +34,9 @@ export const fetchStats = () => api('/stats');
 export const fetchLatestScores = (limit = 600) => api(`/scores/latest?limit=${limit}`);
 export const fetchPersonalizedScores = (limit = 600) => api(`/scores/latest/personalized?limit=${limit}`);
 export const fetchScoreHistory = (ticker, days = 180) => api(`/scores/${ticker}?days=${days}`);
+// Recent close-price series per ticker for real grid sparklines (§3).
+export const fetchSparklines = (tickers, points = 30) =>
+  api(`/prices/sparklines?tickers=${encodeURIComponent((tickers || []).join(','))}&points=${points}`);
 export const fetchSignals = (ticker, limit = 40) => api(`/signals/${ticker}/recent?limit=${limit}`);
 export const fetchMomentumSignals = (limit = 20) => api(`/signals/momentum?limit=${limit}`);
 

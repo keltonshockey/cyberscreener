@@ -19,9 +19,12 @@ export const GLOSSARY = {
   },
   rc_score: {
     title: 'Reality check (0–100)',
-    def: 'A six-component sanity gate on whether a play is actually tradeable.',
-    why: 'Filters out ideas that score well but are impractical to execute.',
-    how: 'Trade quality, execution, score alignment, IV context, catalyst, technical.',
+    def: 'A play-independent setup-quality gate for the ticker: how tradeable the ' +
+      'context looks before a specific contract is chosen.',
+    why: 'Flags names whose scores look good but whose setup is shaky — without ' +
+      'needing a generated play.',
+    how: 'Score alignment, IV context, RSI/trend, earnings proximity. The full ' +
+      'six-component RC (adds trade quality + execution) is computed per play on Pactum.',
   },
   conviction: {
     title: 'Conviction',

@@ -1,12 +1,10 @@
 /**
  * QUAEST.TECH — sector taxonomy (multi-tag, first-class chips · §4).
  *
- * The backend currently persists a single coarse `sector` (cyber/energy/
- * defense/broad) + a `subsector`. The plan calls for an expanded, multi-tag
- * taxonomy (NVDA = AI + Semis + Tech) driven from the data layer. Until that
- * lands server-side (flagged as a backend follow-up), we derive tags here:
- *  1. a curated overlay for prominent multi-tag names, then
- *  2. a fallback mapping from sector/subsector.
+ * The backend now emits a maintained multi-tag `sector_tags` per row
+ * (core/sector_tags → scores.sector_tags, NVDA = AI + Semis + Tech). `tagsFor`
+ * prefers that; the curated overlay + sector/subsector fallback below only cover
+ * rows scanned before the column existed (and keep the chip ordering list local).
  */
 
 // Expanded taxonomy — order = chip display order.
@@ -47,9 +45,21 @@ const SUBSECTOR_TAGS = {
   'Energy': ['Energy'],
 };
 
-/** Return the de-duplicated tag list for a score row. */
+/** Return the de-duplicated tag list for a score row.
+ *
+ * Prefers the backend-maintained `sector_tags` (now emitted per row from
+ * core/sector_tags via /scores/latest); falls back to the curated client map
+ * for rows scanned before the column existed. */
 export function tagsFor(row) {
   if (!row) return [];
+
+  // Backend taxonomy wins when present (arrives as a JSON string or array).
+  let server = row.sector_tags;
+  if (typeof server === 'string') {
+    try { server = JSON.parse(server); } catch { server = null; }
+  }
+  if (Array.isArray(server) && server.length) return server;
+
   const t = TICKER_TAGS[row.ticker];
   if (t) return t;
 

@@ -25,6 +25,7 @@ import {
 } from '../components/ui/icons';
 import {
   fetchScoreHistory, fetchSignals, fetchWatchlist, addWatchlistTicker, removeWatchlistTicker,
+  fetchSparklines,
 } from '../api/endpoints';
 import {
   ltBreakdown, optBreakdown, rowDirection, convictionScore, trendSeries,
@@ -44,6 +45,9 @@ const COLUMNS = [
   { key: 'ticker', label: 'Ticker', align: 'l', get: r => r.ticker },
   { key: 'lt', label: 'LT', term: 'lt_score', get: r => r.lt_score },
   { key: 'opt', label: 'Opt', term: 'opt_score', get: r => r.opt_score, optional: true },
+  // Real per-row reality-check proxy (ticker-level, play-independent) — now emitted
+  // on every score row, so the column is honest rather than aliased to Opt.
+  { key: 'reality', label: 'Reality', term: 'rc_score', get: r => r.rc_score, optional: true },
   { key: 'conviction', label: 'Conviction', term: 'conviction', get: r => convictionScore(r) },
   { key: 'pe', label: 'P/E', term: 'pe', get: r => r.pe_ratio, optional: true },
   { key: 'trend', label: '50-day trend', term: 'trend50', get: r => (r.perf_3m ?? 0), optional: true },
@@ -81,6 +85,7 @@ export function ConvictionPage({ latest }) {
   const [signals, setSignals] = useState(null);
   const [watchlist, setWatchlist] = useState(() => new Set());
   const [wlOnly, setWlOnly] = useState(false);
+  const [sparks, setSparks] = useState(() => ({}));
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -88,6 +93,17 @@ export function ConvictionPage({ latest }) {
       if (d?.tickers) setWatchlist(new Set(d.tickers.map(t => t.ticker || t)));
     });
   }, []);
+
+  // Real recent-price series for the grid sparklines (§3) — one batched call.
+  useEffect(() => {
+    const tickers = results.map(r => r.ticker).filter(Boolean);
+    if (!tickers.length) return;
+    let live = true;
+    fetchSparklines(tickers, 30)
+      .then(d => { if (live && d?.series) setSparks(d.series); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [results]);
 
   const counts = useMemo(() => tagCounts(results), [results]);
 
@@ -287,7 +303,9 @@ export function ConvictionPage({ latest }) {
               const dir = rowDirection(r);
               const lean = leanMeta(dir);
               const conv = convictionScore(r);
-              const series = trendSeries(r);
+              // Real recent-price path when loaded; MA-slope proxy until then.
+              const real = sparks[r.ticker];
+              const series = (real && real.length > 1) ? real : trendSeries(r);
               const trendColor = lean.cls === 'up' ? 'var(--gain)' : lean.cls === 'dn' ? 'var(--loss)' : 'var(--ink-mut)';
               return (
                 <tr key={r.ticker} onClick={() => load(r.ticker)}
@@ -310,6 +328,7 @@ export function ConvictionPage({ latest }) {
                     );
                     if (c.key === 'lt') return <td key={c.key} className={`${styles.num} ${styles.strong}`}>{Math.round(r.lt_score)}</td>;
                     if (c.key === 'opt') return <td key={c.key} className={styles.num}>{Math.round(r.opt_score)}</td>;
+                    if (c.key === 'reality') return <td key={c.key} className={styles.num}>{r.rc_score != null ? Math.round(r.rc_score) : '—'}</td>;
                     if (c.key === 'conviction') return <td key={c.key}><TierBadge score={conv} /></td>;
                     if (c.key === 'pe') return <td key={c.key} className={styles.num}>{r.pe_ratio ? r.pe_ratio.toFixed(0) : '—'}</td>;
                     if (c.key === 'trend') return <td key={c.key}><Sparkline points={series} color={trendColor} /></td>;

@@ -100,7 +100,8 @@ export function convictionScore(row) {
   return (row.opt_score || 0) * 0.6 + (row.lt_score || 0) * 0.4;
 }
 
-/** A small [sma200, sma50, sma20, price] series for the 50-day trend sparkline. */
+/** Fallback only: a long→short [sma200, sma50, sma20, price] slope, used until the
+ *  real recent-price series arrives from /prices/sparklines (§3). Not a price path. */
 export function trendSeries(row) {
   if (!row) return [];
   return [row.sma_200, row.sma_50, row.sma_20, row.price].filter(v => typeof v === 'number' && isFinite(v) && v > 0);

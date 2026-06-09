@@ -1,19 +1,17 @@
 /**
  * QUAEST.TECH — signals relevance engine (§6b).
  *
- * Today's raw signals are duplicated, context-blind and emoji-laden, and they
- * carry no stack/polarity/sector metadata. The right fix is to attach that
- * metadata at *generation* (scanner.py / intel/) and gate scoring on it too —
- * flagged as a backend follow-up. Here we do the display-relevance we can now:
- *   • strip emoji
- *   • dedupe by signal identity (show once, with a count + recency)
- *   • infer `stack` (lt / options / both) and hide cross-stack noise
- *   • infer `polarity` (tailwind / headwind / event)
- *   • apply a sector-context gate (threat/demand only helps cyber vendors;
- *     for a breach victim it is a headwind; otherwise suppressed)
- *   • group into Thesis drivers / Catalysts / Risks
+ * The backend now attaches relevance metadata at generation
+ * (core/signals_meta.classify_signal → /signals/:ticker/recent): emoji-free
+ * text plus `stack` (lt/options/both), `polarity` (tailwind/headwind/event),
+ * `sector_context` (general/cyber-demand/breach-headwind/suppress) and
+ * `dedupe_key`. classifySignals prefers those real fields and only falls back to
+ * the client heuristics below for rows that predate them. It then:
+ *   • dedupes by identity (show once, with a count + recency)
+ *   • hides cross-stack noise (options signals in the value view & vice-versa)
+ *   • respects the sector-context gate (suppress = not relevant to this stock)
+ *   • groups into Thesis drivers / Catalysts / Risks
  */
-import { stripEmoji } from './text';
 import { signalIcon } from '../components/ui/icons';
 
 const OPTIONS_RE = /iv rank|implied vol|premium|directional lean|straddle|strangle|theta|p\/c ratio|put\/call|dte|expiry|condor|spread|delta/i;
@@ -54,12 +52,12 @@ export function classifySignals(raw, row, stack) {
   const isCyberVendor = row?.sector === 'cyber';
   const isBreachVictim = !!row?.breach_victim;
 
-  // 1. clean + dedupe
+  // 1. dedupe — prefer the backend dedupe_key, else a normalized identity.
   const byKey = new Map();
   for (const s of raw || []) {
-    const text = stripEmoji(s.signal_text || '');
+    const text = (s.signal_text || '').trim();
     if (!text) continue;
-    const key = norm(text);
+    const key = s.dedupe_key || norm(text);
     if (!key) continue;
     const ts = s.scan_ts || s.timestamp || '';
     const prev = byKey.get(key);
@@ -67,7 +65,10 @@ export function classifySignals(raw, row, stack) {
       prev.count += 1;
       if (ts > prev.ts) { prev.ts = ts; prev.text = text; }
     } else {
-      byKey.set(key, { text, impact: s.impact, ts, count: 1 });
+      byKey.set(key, {
+        text, impact: s.impact, ts, count: 1,
+        stack: s.stack, polarity: s.polarity, sectorContext: s.sector_context,
+      });
     }
   }
 
@@ -75,13 +76,17 @@ export function classifySignals(raw, row, stack) {
 
   for (const sig of byKey.values()) {
     const t = sig.text;
-    let stk = inferStack(t);
-    let polarity = inferPolarity(sig.impact, t);
+    // Prefer backend relevance metadata; fall back to heuristics for legacy rows.
+    const stk = sig.stack || inferStack(t);
+    let polarity = sig.polarity || inferPolarity(sig.impact, t);
 
-    // sector-context gate: threat/demand is only relevant to security vendors.
-    if (THREAT_RE.test(t)) {
+    if (sig.sectorContext) {
+      // Backend already gated this signal for THIS stock's context.
+      if (sig.sectorContext === 'suppress') continue;  // not relevant → hide + don't score
+    } else if (THREAT_RE.test(t)) {
+      // Legacy fallback: threat/demand only relevant to security vendors.
       if (isBreachVictim) polarity = 'headwind';
-      else if (!isCyberVendor) { continue; }       // noise for non-cyber → suppress
+      else if (!isCyberVendor) continue;
       else if (polarity === 'event') polarity = 'tailwind';
     }
 

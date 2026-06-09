@@ -39,9 +39,9 @@ export function TierSeal({ size = 12, ...rest }) {
 }
 
 /**
- * Map a server-side reason/signal string to a semantic icon. The backend
- * still prefixes some strings with emoji (flagged as a follow-up); we strip
- * those (stripEmoji) and pick an icon from the cleaned text's meaning.
+ * Map a server-side reason/signal string to a semantic icon. The backend now
+ * emits emoji-free text (core/text.strip_emoji), so we pick an icon purely from
+ * the text's meaning — no client-side stripping needed.
  */
 export function signalIcon(text = '', impact = '') {
   const t = text.toLowerCase();
