@@ -1,14 +1,14 @@
 .card {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--surface), var(--bg-deep));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
   padding: var(--space-5);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-lg);
   transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
 }
 
 .elevated {
-  background: var(--marble-cream);
+  background: var(--inset);
   box-shadow: var(--shadow-md);
 }
 
@@ -17,6 +17,6 @@
 }
 
 .interactive:hover {
-  border-color: var(--denarius-silver);
-  box-shadow: var(--shadow-glow);
+  border-color: var(--line);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
 }

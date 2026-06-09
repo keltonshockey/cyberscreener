@@ -21,7 +21,7 @@ export function BreakdownPanel({ items, title, accent, className = '' }) {
         {items.map(item => (
           <div key={item.key} className={styles.row}>
             <div className={styles.meta}>
-              {item.icon && <span className={styles.icon}>{item.icon}</span>}
+              {item.Icon && <item.Icon size={13} className={styles.icon} />}
               <span className={styles.name}>{item.name}</span>
             </div>
             <div className={styles.bar}>

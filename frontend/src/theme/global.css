@@ -19,12 +19,14 @@ html {
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--bg-radial) fixed;
+  background-color: var(--bg);
+  color: var(--ink);
   font-family: var(--font-body);
   font-size: var(--text-base);
   line-height: 1.5;
   min-height: 100vh;
+  font-feature-settings: var(--tnum);
 }
 
 /* ── Scrollbar — Marble + Silver ── */
@@ -38,12 +40,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--denarius-silver);
+  background: var(--line);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--denarius-silver-dark);
+  background: var(--gold);
 }
 
 /* ── Typography Classes ── */
@@ -57,15 +59,18 @@ body {
 
 /* ── Focus Ring — Imperial Purple ── */
 :focus-visible {
-  outline: 2px solid var(--imperial-purple-light);
+  outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
 
 /* ── Selection ── */
 ::selection {
-  background: var(--imperial-purple-glow);
-  color: var(--imperial-purple-dark);
+  background: var(--tyrian-bg);
+  color: var(--ink);
 }
+
+/* ── Tabular figures for numeric data ── */
+.num, .font-mono { font-variant-numeric: tabular-nums; }
 
 /* ── Links ── */
 a {

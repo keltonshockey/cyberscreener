@@ -1,0 +1,13 @@
+.tier {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.high  { background: var(--gold-bg);   color: var(--gold); }
+.solid { background: var(--tyrian-bg); color: var(--tyrian); }
+.watch { background: rgba(255, 255, 255, 0.05); color: var(--ink-mut); }

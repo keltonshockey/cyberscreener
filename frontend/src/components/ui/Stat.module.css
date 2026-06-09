@@ -1,0 +1,39 @@
+.score {
+  background: var(--inset);
+  border-radius: var(--radius-md);
+  padding: 13px 15px;
+  position: relative;
+}
+
+.k {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.v {
+  font-size: 27px;
+  font-weight: 500;
+  margin-top: 3px;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.bar {
+  height: 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--bar-fill);
+}
