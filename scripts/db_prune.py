@@ -116,7 +116,16 @@ def setup_logging(log_file):
 
 def get_conn(db_path, ro=False):
     if ro:
+        # mode=ro cannot read a WAL-mode DB whose -shm does not exist yet
+        # (e.g. a standalone .backup copy). Fall back to a normal connection
+        # locked down with query_only — identical zero-write guarantee.
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=60)
+        try:
+            conn.execute("SELECT 1 FROM sqlite_master LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.close()
+            conn = sqlite3.connect(db_path, timeout=60)
+            conn.execute("PRAGMA query_only=ON")
     else:
         conn = sqlite3.connect(db_path, timeout=60)
     conn.row_factory = sqlite3.Row
@@ -311,6 +320,9 @@ def make_backup(db_path, backup_dir):
     dst = sqlite3.connect(dest)
     try:
         src.backup(dst)
+        # The destination inherits WAL mode from the source; fold any WAL
+        # content into the .bak itself so the single file is the backup.
+        dst.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     finally:
         dst.close()
         src.close()
@@ -332,12 +344,19 @@ def verify_backup(backup_path, expected_plays):
 
 
 def rotate_backups(backup_dir, keep):
+    if keep <= 0:
+        return
+    # Match only the .bak files themselves — a backup's -wal/-shm sidecars
+    # share the prefix and must not count toward (or survive) rotation.
     backups = sorted(
-        f for f in os.listdir(backup_dir) if f.startswith(BACKUP_PREFIX))
-    for old in backups[:-keep] if keep > 0 else []:
-        path = os.path.join(backup_dir, old)
-        log.info("Rotating out old pre-prune backup %s", path)
-        os.remove(path)
+        f for f in os.listdir(backup_dir)
+        if f.startswith(BACKUP_PREFIX) and f.endswith(".bak"))
+    for old in backups[:-keep]:
+        log.info("Rotating out old pre-prune backup %s", old)
+        for name in (old, old + "-wal", old + "-shm"):
+            path = os.path.join(backup_dir, name)
+            if os.path.exists(path):
+                os.remove(path)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

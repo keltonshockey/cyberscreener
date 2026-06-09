@@ -242,6 +242,29 @@ def test_guard_scan_in_flight(tmp_path, cfg):
     assert busy
 
 
+def test_rotation_never_eats_fresh_backup(tmp_path):
+    """Regression: -wal/-shm sidecars share the backup prefix; they must not
+    count toward rotation or the newest .bak gets evicted by its own sidecars."""
+    bdir = tmp_path / "backups"
+    bdir.mkdir()
+    fresh = bdir / f"{db_prune.BACKUP_PREFIX}20260609_120000.bak"
+    for name in [fresh.name, fresh.name + "-wal", fresh.name + "-shm"]:
+        (bdir / name).write_text("x")
+    db_prune.rotate_backups(str(bdir), keep=2)
+    assert fresh.exists()
+
+    # And with 3 real backups, the oldest goes (with its sidecars), newest 2 stay
+    for ts in ["20260601_010000", "20260605_010000"]:
+        (bdir / f"{db_prune.BACKUP_PREFIX}{ts}.bak").write_text("x")
+    (bdir / f"{db_prune.BACKUP_PREFIX}20260601_010000.bak-wal").write_text("x")
+    db_prune.rotate_backups(str(bdir), keep=2)
+    left = sorted(f.name for f in bdir.iterdir())
+    assert f"{db_prune.BACKUP_PREFIX}20260601_010000.bak" not in left
+    assert f"{db_prune.BACKUP_PREFIX}20260601_010000.bak-wal" not in left
+    assert fresh.name in left
+    assert f"{db_prune.BACKUP_PREFIX}20260605_010000.bak" in left
+
+
 def test_guard_idle_window(cfg):
     ok, _ = db_prune.in_idle_window(cfg, dt.datetime(2026, 6, 10, 3, 0))   # Wed 03:00
     assert ok
