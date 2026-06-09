@@ -1345,6 +1345,19 @@ def _evict_plays_cache():
             _plays_cache.pop(k, None)
             _plays_status.pop(k, None)
 
+def _latest_scores_for(ticker):
+    """Latest lt/opt scores for a ticker, for journal logging at entry time."""
+    try:
+        conn = get_db()
+        row = conn.execute(
+            "SELECT lt_score, opt_score FROM scores WHERE ticker = ? "
+            "ORDER BY scan_id DESC LIMIT 1", (ticker,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
 def _fetch_plays_background(ticker):
     global _plays_status, _plays_cache
     _plays_status[ticker] = {"running": True, "message": f"Fetching data for {ticker}..."}
@@ -1399,6 +1412,10 @@ def _fetch_plays_background(ticker):
             # alert (nested below) is unchanged.
             if rc >= 50:
                 try:
+                    # fetch_ticker_data never carries lt/opt scores, so the old
+                    # data.get(..., 0) filed conviction 0 on every journal row —
+                    # read the latest scored values from the DB instead
+                    scores_row = _latest_scores_for(ticker)
                     log_play(
                         ticker=ticker,
                         horizon=play.get("horizon", "medium"),
@@ -1408,8 +1425,8 @@ def _fetch_plays_background(ticker):
                         dte=play.get("dte", 30),
                         entry_price=play.get("entry_price", data["price"]),
                         entry_iv_rank=data.get("iv_rank"),
-                        lt_score=data.get("lt_score", 0),
-                        opt_score=data.get("opt_score", 0),
+                        lt_score=scores_row["lt_score"] if scores_row else data.get("lt_score", 0),
+                        opt_score=scores_row["opt_score"] if scores_row else data.get("opt_score", 0),
                         rc_score=rc,
                         direction=play.get("direction", "bullish"),
                         notes=play.get("rationale", ""),
