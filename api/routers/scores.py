@@ -12,6 +12,63 @@ from db.models import get_db, get_score_history
 router = APIRouter(tags=["scores"])
 
 _latest_scores_cache = {"data": None, "ts": 0, "key": None}
+_sparkline_cache = {"data": None, "ts": 0, "key": None}
+
+
+@router.get("/prices/sparklines")
+def get_sparklines(
+    tickers: str = Query(..., description="Comma-separated tickers, e.g. NVDA,AMD"),
+    points: int = Query(30, ge=5, le=60),
+):
+    """Recent close-price series per ticker — a real price path for grid sparklines
+    (replaces the client-side ``[sma200, sma50, sma20, price]`` slope proxy).
+
+    Lean by design: the last ``points`` closes only, batched for many tickers in one
+    request, and cached 60s (prices refresh once per scan, not per request).
+    """
+    syms = []
+    for raw in (tickers or "").split(","):
+        s = raw.strip().upper()
+        if s and s.replace(".", "").isalnum() and len(s) <= 10 and s not in syms:
+            syms.append(s)
+        if len(syms) >= 200:
+            break
+    if not syms:
+        return {"points": points, "series": {}}
+
+    now = time.time()
+    key = f"{points}:{','.join(sorted(syms))}"
+    if (
+        _sparkline_cache["data"]
+        and (now - _sparkline_cache["ts"]) < 60
+        and _sparkline_cache["key"] == key
+    ):
+        return _sparkline_cache["data"]
+
+    conn = get_db()
+    placeholders = ",".join("?" * len(syms))
+    # Pull the most-recent `points` closes per ticker via a windowed query, then
+    # re-order ascending for plotting. ROW_NUMBER keeps it to one round-trip.
+    rows = conn.execute(f"""
+        SELECT ticker, date, close_price FROM (
+            SELECT ticker, date, close_price,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
+            FROM prices
+            WHERE ticker IN ({placeholders})
+        ) WHERE rn <= ?
+        ORDER BY ticker ASC, date ASC
+    """, (*syms, points)).fetchall()
+    conn.close()
+
+    series = {}
+    for r in rows:
+        series.setdefault(r["ticker"], []).append(round(r["close_price"], 2))
+
+    result = {"points": points, "series": series}
+    _sparkline_cache["data"] = result
+    _sparkline_cache["ts"] = now
+    _sparkline_cache["key"] = key
+    return result
 
 
 @router.get("/scores/latest")
