@@ -48,7 +48,7 @@ export const GLOSSARY = {
     title: '50-day trend',
     def: 'The slope from the 200-day average through the 50-day and 20-day to today’s price.',
     why: 'Rising line = constructive momentum; falling = weakening.',
-    how: 'A sparkline of long → short moving averages → current price.',
+    how: 'A sparkline of long-to-short moving averages through to the current price.',
   },
   rsi: {
     title: 'RSI (relative strength index)',

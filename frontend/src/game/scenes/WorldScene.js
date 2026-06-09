@@ -102,7 +102,7 @@ export class WorldScene extends Phaser.Scene {
     // Debug: verify spawn position and collision
     const spawnTile = this._worldToTile(this.player.x, this.player.y);
     const blocked = this._isBlocked(this.player.x, this.player.y);
-    console.log(`[QUAEST] Spawn: world(${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)}) → tile(${spawnTile.x}, ${spawnTile.y}) blocked=${blocked}`);
+    console.log(`[QUAEST] Spawn: world(${this.player.x.toFixed(0)}, ${this.player.y.toFixed(0)}) -> tile(${spawnTile.x}, ${spawnTile.y}) blocked=${blocked}`);
   }
 
   update(time, delta) {
@@ -605,7 +605,7 @@ export class WorldScene extends Phaser.Scene {
     // ── Render actual tile data ──
     const gfx = this.add.graphics().setScrollFactor(0);
 
-    // GID → color mapping (matches the brand palette used in tileset generator)
+    // GID -> color mapping (matches the brand palette used in tileset generator)
     const gidColor = (gid) => {
       if (gid === 0) return -1;
       if (gid >= 1 && gid <= 8) return 0x4A8B4A;     // grass

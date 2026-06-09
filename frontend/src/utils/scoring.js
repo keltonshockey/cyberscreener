@@ -100,7 +100,7 @@ export function convictionScore(row) {
   return (row.opt_score || 0) * 0.6 + (row.lt_score || 0) * 0.4;
 }
 
-/** Fallback only: a long→short [sma200, sma50, sma20, price] slope, used until the
+/** Fallback only: a long->short [sma200, sma50, sma20, price] slope, used until the
  *  real recent-price series arrives from /prices/sparklines (§3). Not a price path. */
 export function trendSeries(row) {
   if (!row) return [];

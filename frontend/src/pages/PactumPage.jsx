@@ -9,6 +9,11 @@ import { Card } from '../components/ui/Card';
 import { Metric } from '../components/ui/Metric';
 import { Badge } from '../components/ui/Badge';
 import { ScoreBar } from '../components/ui/ScoreBar';
+import { Explain } from '../components/ui/Explain';
+import {
+  Crosshair, BarChart3, RefreshCw, AlertTriangle, Brain, Settings,
+  ChevronDown, ChevronUp, ChevronRight, DirectionIcon,
+} from '../components/ui/icons';
 import { generatePlays, fetchPlayStatus, fetchPlayHistory, fetchWeights, updateWeights, fetchInversePlays, analyzePlaysTicker, fetchKillerPlays } from '../api/endpoints';
 import { getRC, rcVerdict, rcBreakdown } from '../utils/scoring';
 import { fmtExpiry, fmtTimeOnly } from '../utils/formatters';
@@ -182,7 +187,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
     detail = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Card style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.5 }}>{'⚔️'}</div>
+          <div style={{ marginBottom: 12, color: 'var(--gold)', display: 'flex', justifyContent: 'center' }}><Crosshair size={30} /></div>
           <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>The Pactum</div>
           <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>
             Select a ticker to forge options plays. Each includes scoring breakdown, Reality Check, and risk/reward analysis.
@@ -192,8 +197,8 @@ export function PactumPage({ latest, defaultTicker, tz }) {
         {/* Play history toggle */}
         <Card style={{ padding: 20, cursor: 'pointer' }} onClick={() => { if (!showHist) loadHistory(); setShowHist(s => !s); }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showHist ? 14 : 0 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{'📈'} Play History</h2>
-            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{showHist ? '▲ hide' : '▼ expand'}</span>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}><BarChart3 size={16} /> Play History</h2>
+            <span style={{ fontSize: 11, color: 'var(--ink-mut)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>{showHist ? <><ChevronUp size={13} /> hide</> : <><ChevronDown size={13} /> expand</>}</span>
           </div>
           {showHist && (
             <div onClick={e => e.stopPropagation()}>
@@ -274,7 +279,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
   } else if (!data) {
     detail = (
       <Card style={{ padding: 40, textAlign: 'center' }}>
-        <div className="pulse" style={{ fontSize: 24, marginBottom: 12 }}>{'⟳'}</div>
+        <div className="pulse" style={{ marginBottom: 12, color: 'var(--gold)', display: 'flex', justifyContent: 'center' }}><RefreshCw size={24} /></div>
         <div style={{ fontSize: 14, color: 'var(--color-text-secondary)', fontWeight: 500, marginBottom: 8 }}>Forging plays for {sel}</div>
         <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{msg}</div>
       </Card>
@@ -284,7 +289,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
       <Card style={{ padding: 24 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700 }}>{sel}</h2>
         {data.price && <div style={{ fontSize: 22, fontWeight: 700, fontFamily: 'var(--font-mono)', margin: '8px 0' }}>${data.price}</div>}
-        <div className={styles.errorBanner}>{'⚠'} {data.error}</div>
+        <div className={styles.errorBanner}><AlertTriangle size={14} style={{ verticalAlign: '-2px' }} /> {data.error}</div>
       </Card>
     );
   } else {
@@ -321,14 +326,14 @@ export function PactumPage({ latest, defaultTicker, tz }) {
                   </span>
                 )}
                 <button className={styles.refreshBtn} onClick={e => { e.stopPropagation(); loadPlays(sel, true); }}>
-                  {'🔄'} Refresh
+                  <RefreshCw size={12} style={{ verticalAlign: '-2px' }} /> Refresh
                 </button>
               </div>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 10, marginTop: 14 }}>
-            <Metric label="RSI" value={p.rsi != null ? Math.round(p.rsi) : '—'} color={p.rsi < 30 ? 'var(--color-success)' : p.rsi > 70 ? 'var(--color-danger)' : 'var(--color-warning)'} sub={p.rsi < 30 ? 'Oversold' : p.rsi > 70 ? 'Overbought' : 'Neutral'} />
-            <Metric label="IV 30d" value={p.iv_30d != null ? p.iv_30d + '%' : '—'} color={p.iv_30d > 50 ? 'var(--color-danger)' : 'var(--color-warning)'} />
+            <Metric label={<>RSI <Explain term="rsi" /></>} value={p.rsi != null ? Math.round(p.rsi) : '—'} color={p.rsi < 30 ? 'var(--color-success)' : p.rsi > 70 ? 'var(--color-danger)' : 'var(--color-warning)'} sub={p.rsi < 30 ? 'Oversold' : p.rsi > 70 ? 'Overbought' : 'Neutral'} />
+            <Metric label={<>IV 30d <Explain term="iv_rank" /></>} value={p.iv_30d != null ? p.iv_30d + '%' : '—'} color={p.iv_30d > 50 ? 'var(--color-danger)' : 'var(--color-warning)'} />
             <Metric label="Earnings" value={p.days_to_earnings != null ? p.days_to_earnings + 'd' : '—'} color={p.days_to_earnings != null && p.days_to_earnings <= 14 ? 'var(--color-success)' : 'var(--color-text-secondary)'} />
             <Metric label="Beta" value={p.beta != null ? Number(p.beta).toFixed(1) : '—'} />
             <Metric label="Vol Ratio" value={p.vol_ratio != null ? p.vol_ratio + 'x' : '—'} />
@@ -374,7 +379,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
               {/* Play header */}
               <div className={styles.playHeader}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>{pl.emoji}</span>
+                  <span style={{ color: dC, display: 'inline-flex' }}><DirectionIcon dir={pl.direction} size={20} /></span>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{pl.strategy}</div>
                     <Badge color={dC}>{pl.direction}</Badge>
@@ -400,8 +405,8 @@ export function PactumPage({ latest, defaultTicker, tz }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: verdict.color }}>{verdict.label}</div>
-                    <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>Reality Check</div>
-                    <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>{expandedRC.has(i) ? '▲ hide' : '▼ why?'}</span>
+                    <div style={{ fontSize: 10, color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>Reality Check <Explain term="rc_score" /></div>
+                    <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{expandedRC.has(i) ? <><ChevronUp size={11} /> hide</> : <><ChevronDown size={11} /> why?</>}</span>
                   </div>
                   {/* RC component mini-bars */}
                   {pl._breakdown && pl._breakdown.length > 0 && (
@@ -443,7 +448,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
                       return (
                         <div key={ci} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                           <div style={{ minWidth: 80 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text)' }}>{comp.icon} {comp.name}</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>{comp.Icon && <comp.Icon size={12} />} {comp.name}</div>
                             <div style={{ fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: barColor }}>
                               {comp.points}/{comp.max}
                             </div>
@@ -495,7 +500,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
               </div>
 
               {/* Risk notes */}
-              <div className={styles.riskNotes}>{'⚠'} {pl.risk_notes}</div>
+              <div className={styles.riskNotes}><AlertTriangle size={13} style={{ verticalAlign: '-2px' }} /> {pl.risk_notes}</div>
             </Card>
           );
         }) : (
@@ -524,19 +529,19 @@ export function PactumPage({ latest, defaultTicker, tz }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                {'🧠'} Analyze with AI
+                <Brain size={15} /> Analyze with AI
               </button>
             )}
             {aiLoading && (
               <div style={{ textAlign: 'center', padding: 16 }}>
-                <div className="pulse" style={{ fontSize: 18, marginBottom: 8 }}>{'🧠'}</div>
+                <div className="pulse" style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: 'var(--tyrian)' }}><Brain size={18} /></div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Analyzing plays with Claude...</div>
               </div>
             )}
             {aiAnalysis && !aiAnalysis.error && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{'🧠'} AI Analysis</h3>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Brain size={16} /> AI Analysis</h3>
                   {aiAnalysis.cached && <Badge color="var(--color-text-tertiary)">cached</Badge>}
                 </div>
 
@@ -584,7 +589,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
                 {/* Blind spot */}
                 {aiAnalysis.blind_spot && (
                   <div style={{ padding: '10px 14px', background: 'var(--color-warning-bg)', borderRadius: 8, borderLeft: '3px solid var(--color-warning)' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-warning)', marginBottom: 4 }}>{'⚠'} BLIND SPOT</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-warning)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={11} /> BLIND SPOT</div>
                     <div style={{ fontSize: 12, color: 'var(--color-text)', lineHeight: 1.5 }}>{aiAnalysis.blind_spot}</div>
                   </div>
                 )}
@@ -598,8 +603,8 @@ export function PactumPage({ latest, defaultTicker, tz }) {
               </div>
             )}
             {aiAnalysis?.error && (
-              <div style={{ padding: 12, fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                {'⚠'} {aiAnalysis.error}
+              <div style={{ padding: 12, fontSize: 12, color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={13} /> {aiAnalysis.error}
               </div>
             )}
           </Card>
@@ -614,7 +619,7 @@ export function PactumPage({ latest, defaultTicker, tz }) {
       <div className={styles.sidebar}>
         {/* Weight tuner toggle */}
         <button className={`${styles.tunerBtn} ${showW ? styles.tunerActive : ''}`} onClick={() => setShowW(!showW)}>
-          {'⚙'} Weight Tuner <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>{showW ? '▼' : '▶'}</span>
+          <Settings size={13} style={{ verticalAlign: '-2px' }} /> Weight Tuner {showW ? <ChevronDown size={12} style={{ verticalAlign: '-2px' }} /> : <ChevronRight size={12} style={{ verticalAlign: '-2px' }} />}
         </button>
 
         {showW && (

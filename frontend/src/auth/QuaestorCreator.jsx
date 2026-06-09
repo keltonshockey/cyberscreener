@@ -1,15 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { augurCreate } from '../api/endpoints';
+import { Shield, Target, Scroll, Sprout, Compass, Waves } from '../components/ui/icons';
 import styles from './QuaestorCreator.module.css';
 
 const VIRTUTES = [
-  { key: 'prudentia', name: 'Prudentia', icon: '🛡️', desc: 'Caution — boosts Valuation & Earnings Quality' },
-  { key: 'audacia', name: 'Audacia', icon: '⚔️', desc: 'Boldness — boosts Directional Conviction & Asymmetry' },
-  { key: 'sapientia', name: 'Sapientia', icon: '📜', desc: 'Wisdom — boosts FCF Margin & Rule of 40' },
-  { key: 'fortuna', name: 'Fortuna', icon: '🎲', desc: 'Momentum — boosts Discount Momentum & Trend' },
-  { key: 'prospectus', name: 'Prospectus', icon: '👁', desc: 'Vision — boosts Earnings Catalyst & IV Context' },
-  { key: 'liquiditas', name: 'Liquiditas', icon: '💧', desc: 'Liquidity — boosts Liquidity & Technical Setup' },
+  { key: 'prudentia', name: 'Prudentia', Icon: Shield, desc: 'Caution — boosts Valuation & Earnings Quality' },
+  { key: 'audacia', name: 'Audacia', Icon: Target, desc: 'Boldness — boosts Directional Conviction & Asymmetry' },
+  { key: 'sapientia', name: 'Sapientia', Icon: Scroll, desc: 'Wisdom — boosts FCF Margin & Rule of 40' },
+  { key: 'fortuna', name: 'Fortuna', Icon: Sprout, desc: 'Momentum — boosts Discount Momentum & Trend' },
+  { key: 'prospectus', name: 'Prospectus', Icon: Compass, desc: 'Vision — boosts Earnings Catalyst & IV Context' },
+  { key: 'liquiditas', name: 'Liquiditas', Icon: Waves, desc: 'Liquidity — boosts Liquidity & Technical Setup' },
 ];
 
 const POOL = 36;
@@ -82,7 +83,7 @@ export function QuaestorCreator({ onCreated }) {
           {VIRTUTES.map(v => (
             <div key={v.key} className={styles.sliderRow}>
               <div className={styles.sliderMeta}>
-                <span className={styles.sliderIcon}>{v.icon}</span>
+                <span className={styles.sliderIcon}><v.Icon size={18} /></span>
                 <div>
                   <div className={styles.sliderName}>{v.name}</div>
                   <div className={styles.sliderDesc}>{v.desc}</div>
@@ -105,7 +106,7 @@ export function QuaestorCreator({ onCreated }) {
 
         {dominantTrait && (
           <div className={styles.preview}>
-            <span className={styles.previewIcon}>{dominantTrait.icon}</span>
+            <span className={styles.previewIcon}><dominantTrait.Icon size={20} /></span>
             <span className={styles.previewText}>
               Dominant Trait: <strong>{dominantTrait.name}</strong>
             </span>

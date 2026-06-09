@@ -124,7 +124,7 @@
   --color-info:           var(--spark);
   --color-info-bg:        rgba(58, 110, 165, 0.14);
 
-  /* legacy palette names → Imperial Twilight */
+  /* legacy palette names -> Imperial Twilight */
   --imperial-purple:        var(--tyrian);
   --imperial-purple-dark:   #7D2E5E;
   --imperial-purple-light:  #B85490;

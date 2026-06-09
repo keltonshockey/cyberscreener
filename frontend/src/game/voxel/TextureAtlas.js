@@ -71,7 +71,7 @@ const ATLAS_ROWS = 8;
 const ATLAS_W = ATLAS_COLS * TEX_SIZE; // 128
 const ATLAS_H = ATLAS_ROWS * TEX_SIZE; // 128
 
-// Texture name → atlas position (col, row)
+// Texture name -> atlas position (col, row)
 const TEX_MAP = {};
 let _nextSlot = 0;
 

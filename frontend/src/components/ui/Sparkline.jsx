@@ -2,7 +2,7 @@
  * QUAEST.TECH — Sparkline.
  * Renders a tiny polyline from a numeric series. Color follows polarity.
  * On the Forum grid we feed it [sma_200, sma_50, sma_20, price] — a genuine
- * long → short moving-average → current-price slope (the "50-day trend").
+ * long -> short moving-average -> current-price slope (the "50-day trend").
  */
 export function Sparkline({ points, color = 'var(--ink-mut)', width = 74, height = 20, strokeWidth = 1.5 }) {
   const vals = (points || []).filter(v => typeof v === 'number' && isFinite(v));

@@ -5,22 +5,23 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { Activity, AlertTriangle, X, ChevronDown, ChevronUp } from './icons';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const STATUS_COLOR = {
-  healthy:  'var(--color-success)',
-  degraded: 'var(--forge-amber, #d4a017)',
-  critical: 'var(--color-danger)',
+  healthy:  'var(--gain)',
+  degraded: 'var(--gold)',
+  critical: 'var(--loss)',
 };
 
 const CHECK_COLOR = {
-  ok:   'var(--color-success)',
-  warn: 'var(--forge-amber, #d4a017)',
-  fail: 'var(--color-danger)',
+  ok:   'var(--gain)',
+  warn: 'var(--gold)',
+  fail: 'var(--loss)',
 };
 
-const CHECK_ICON = { ok: '●', warn: '▲', fail: '✕' };
+const CHECK_ICON = { ok: Activity, warn: AlertTriangle, fail: X };
 
 const CHECK_LABELS = {
   scanner:  'Scanner',
@@ -54,7 +55,7 @@ export function SystemHealthWidget() {
 
   if (!health) return null;
 
-  const color = STATUS_COLOR[health.status] || 'var(--color-text-secondary)';
+  const color = STATUS_COLOR[health.status] || 'var(--ink-mut)';
   const checks = Object.entries(health.checks || {});
   const hasIssues = health.status !== 'healthy';
 
@@ -70,8 +71,8 @@ export function SystemHealthWidget() {
       style={{
         cursor: 'pointer',
         borderRadius: 8,
-        border: `1px solid ${hasIssues ? color + '60' : 'var(--color-border-subtle)'}`,
-        background: hasIssues ? color + '08' : 'var(--color-bg)',
+        border: `1px solid ${hasIssues ? color + '60' : 'var(--line)'}`,
+        background: hasIssues ? color + '12' : 'var(--surface)',
         padding: '8px 14px',
         display: 'flex',
         flexDirection: 'column',
@@ -82,36 +83,39 @@ export function SystemHealthWidget() {
     >
       {/* Collapsed row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 9, color, fontWeight: 700, letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
-          ● {health.status.toUpperCase()}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 9, color, fontWeight: 700, letterSpacing: '0.08em', fontFamily: 'var(--font-mono)' }}>
+          <Activity size={11} /> {health.status.toUpperCase()}
         </span>
-        <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', flex: 1 }}>
+        <span style={{ fontSize: 10, color: 'var(--ink-mut)', flex: 1 }}>
           {summary}
         </span>
-        <span style={{ fontSize: 9, color: 'var(--color-text-tertiary)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'var(--ink-dim)' }}>
           {lastFetch ? `updated ${Math.round((Date.now() - lastFetch) / 60000) || '<1'}m ago` : ''}
-          {' '}{expanded ? '▲' : '▼'}
+          {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         </span>
       </div>
 
       {/* Expanded breakdown */}
       {expanded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onClick={e => e.stopPropagation()}>
-          <div style={{ height: 1, background: 'var(--color-border-subtle)', margin: '2px 0' }} />
-          {checks.map(([key, check]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <span style={{ fontSize: 10, color: CHECK_COLOR[check.status], fontWeight: 700, minWidth: 10, marginTop: 1 }}>
-                {CHECK_ICON[check.status]}
-              </span>
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--color-text)', minWidth: 110 }}>
-                {CHECK_LABELS[key] || key}
-              </span>
-              <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', flex: 1 }}>
-                {check.message}
-              </span>
-            </div>
-          ))}
-          <div style={{ marginTop: 2, fontSize: 9, color: 'var(--color-text-tertiary)' }}>
+          <div style={{ height: 1, background: 'var(--line-soft)', margin: '2px 0' }} />
+          {checks.map(([key, check]) => {
+            const Icon = CHECK_ICON[check.status] || Activity;
+            return (
+              <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ color: CHECK_COLOR[check.status], minWidth: 14, marginTop: 1, display: 'inline-flex' }}>
+                  <Icon size={12} />
+                </span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ink)', minWidth: 110 }}>
+                  {CHECK_LABELS[key] || key}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--ink-mut)', flex: 1 }}>
+                  {check.message}
+                </span>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 2, fontSize: 9, color: 'var(--ink-dim)' }}>
             Refreshes every 5 min · plays with CAUTION or FAIL rating are flagged independently
           </div>
         </div>

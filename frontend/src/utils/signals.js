@@ -2,7 +2,7 @@
  * QUAEST.TECH — signals relevance engine (§6b).
  *
  * The backend now attaches relevance metadata at generation
- * (core/signals_meta.classify_signal → /signals/:ticker/recent): emoji-free
+ * (core/signals_meta.classify_signal -> /signals/:ticker/recent): emoji-free
  * text plus `stack` (lt/options/both), `polarity` (tailwind/headwind/event),
  * `sector_context` (general/cyber-demand/breach-headwind/suppress) and
  * `dedupe_key`. classifySignals prefers those real fields and only falls back to
@@ -82,7 +82,7 @@ export function classifySignals(raw, row, stack) {
 
     if (sig.sectorContext) {
       // Backend already gated this signal for THIS stock's context.
-      if (sig.sectorContext === 'suppress') continue;  // not relevant → hide + don't score
+      if (sig.sectorContext === 'suppress') continue;  // not relevant -> hide + don't score
     } else if (THREAT_RE.test(t)) {
       // Legacy fallback: threat/demand only relevant to security vendors.
       if (isBreachVictim) polarity = 'headwind';

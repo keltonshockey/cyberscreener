@@ -39,7 +39,7 @@ const STACKS = [
   { value: 'options', label: 'Tactical options', Icon: Zap },
 ];
 
-// Grid columns. accessor → sortable value. `optional` columns are toggleable
+// Grid columns. accessor -> sortable value. `optional` columns are toggleable
 // via the column chooser.
 const COLUMNS = [
   { key: 'ticker', label: 'Ticker', align: 'l', get: r => r.ticker },

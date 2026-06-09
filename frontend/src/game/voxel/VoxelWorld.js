@@ -654,7 +654,7 @@ export class VoxelWorld {
     skyCanvas.height = 256;
     const ctx = skyCanvas.getContext('2d');
 
-    // Vertical gradient: sky blue → pale gold → warm horizon
+    // Vertical gradient: sky blue -> pale gold -> warm horizon
     const grad = ctx.createLinearGradient(0, 0, 0, 256);
     grad.addColorStop(0.0, '#4488AA');   // zenith — blue sky
     grad.addColorStop(0.3, '#6699BB');   // upper sky
