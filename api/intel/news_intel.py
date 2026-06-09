@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 _news_cache     = {"items": None, "ts": 0}   # TTL: 1800s (30 min)
 _outage_cache   = {"data":  None, "ts": 0}   # TTL: 300s  (5 min)
 _market_cache   = {"spx":   None, "ts": 0}   # TTL: 300s  (5 min)
-# Rolling outage history: ticker → deque of last 3 status strings
+# Rolling outage history: ticker deque of last 3 status strings
 # Used for confirmation: only apply full penalty after 2+ bad checks
 _outage_history: dict = {}
 
@@ -51,7 +51,7 @@ STATUS_PAGES = {
 # ── RSS fetching ───────────────────────────────────────────────────────────────
 
 def _parse_date(pub_str: str):
-    """Parse RFC-2822 pubDate → datetime (UTC). Returns None on failure."""
+    """Parse RFC-2822 pubDate datetime (UTC). Returns None on failure."""
     try:
         from email.utils import parsedate_to_datetime
         dt = parsedate_to_datetime(pub_str)
@@ -88,7 +88,7 @@ def _fetch_one_feed(source_name: str, url: str) -> list:
                 "combined":  combined,
             })
     except Exception as e:
-        print(f"⚠️ news_intel: failed fetching {source_name}: {e}")
+        print(f"news_intel: failed fetching {source_name}: {e}")
     return items
 
 
@@ -180,7 +180,7 @@ def _warm_market():
         change_pct = ((float(price) - float(prev_close)) / float(prev_close) * 100) if (price and prev_close) else 0.0
         _market_cache["spx"] = round(change_pct, 2)
     except Exception as e:
-        print(f"⚠️ news_intel: SPX fetch failed: {e}")
+        print(f"news_intel: SPX fetch failed: {e}")
         _market_cache["spx"] = 0.0
     _market_cache["ts"] = time.time()
 
@@ -203,7 +203,7 @@ def warm_caches(all_tickers=None):
             try:
                 f.result(timeout=20)
             except Exception as e:
-                print(f"⚠️ news_intel warm_caches error: {e}")
+                print(f"news_intel warm_caches error: {e}")
 
 
 def score_ticker_threat_context(ticker: str, sector: str = "cyber") -> dict:
@@ -239,11 +239,11 @@ def score_ticker_threat_context(ticker: str, sector: str = "cyber") -> dict:
             opt_mod -= penalty
             affected = svc.get("components_affected", [])
             detail = f" ({', '.join(affected[:2])})" if affected else ""
-            signals.append(f"🔴 Active service outage{detail} — {conf_label} (-{penalty}pts)")
+            signals.append(f"Active service outage{detail} — {conf_label} (-{penalty}pts)")
         elif outage_status == "degraded":
             penalty = 8 if confirmed else 4
             opt_mod -= penalty
-            signals.append(f"⚠️ Service degraded — {conf_label} (-{penalty}pts)")
+            signals.append(f"Service degraded — {conf_label} (-{penalty}pts)")
 
     # ── 2. Breach / hack victim detection ─────────────────────────────────────
     if _news_cache["items"]:
@@ -260,7 +260,7 @@ def score_ticker_threat_context(ticker: str, sector: str = "cyber") -> dict:
                 opt_mod -= 15
                 lt_mod  -= 5
                 signals.append(
-                    f"🚨 Breach/attack news mentions {ticker}: \"{item['title'][:60]}...\""
+                    f"Breach/attack news mentions {ticker}: \"{item['title'][:60]}...\""
                 )
                 break  # one strike is enough
 
@@ -279,7 +279,7 @@ def score_ticker_threat_context(ticker: str, sector: str = "cyber") -> dict:
                 demand_signal = True
                 opt_mod += 8
                 signals.append(
-                    f"🌋 Active threat landscape ({len(threat_articles)} breach articles) "
+                    f"Active threat landscape ({len(threat_articles)} breach articles) "
                     f"— demand signal for {ticker}"
                 )
 
@@ -287,10 +287,10 @@ def score_ticker_threat_context(ticker: str, sector: str = "cyber") -> dict:
     spx_chg = _market_cache.get("spx", 0.0) or 0.0
     if spx_chg < -3.0:
         opt_mod -= 10
-        signals.append(f"📉 Market risk-off: S&P {spx_chg:+.2f}% — strong caution")
+        signals.append(f"Market risk-off: S&P {spx_chg:+.2f}% — strong caution")
     elif spx_chg < -1.5:
         opt_mod -= 5
-        signals.append(f"📉 Market soft: S&P {spx_chg:+.2f}% — mild caution")
+        signals.append(f"Market soft: S&P {spx_chg:+.2f}% — mild caution")
 
     # ── 5. Compute composite threat_score ─────────────────────────────────────
     threat_score = max(0, min(100, 100 + opt_mod))

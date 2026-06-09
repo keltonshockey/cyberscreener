@@ -43,7 +43,11 @@ def test_scanner_and_market_sources_are_emoji_free():
     """The strings that scanner.py / routers/market.py generate must be clean at
     the source so the frontend stripEmoji shim becomes dead code."""
     here = os.path.dirname(__file__)
-    for rel in ("../core/scanner.py", "../routers/market.py"):
+    sources = (
+        "../core/scanner.py", "../routers/market.py",
+        "../intel/sentiment.py", "../intel/news_intel.py", "../intel/sec_filings.py",
+    )
+    for rel in sources:
         text = open(os.path.join(here, rel), encoding="utf-8").read()
         found = EMOJI_RE.findall(text)
         assert not found, f"{rel} still contains emoji: {set(found)}"
