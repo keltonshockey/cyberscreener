@@ -163,22 +163,22 @@ def _compute_sec_score(insider: dict, analyst: dict, recent_8k: int) -> tuple[in
     # ── Insider momentum (40 pts) ──
     if net >= 3:
         score += 40
-        signals.append(f"🟢 Strong insider buying: {buys} purchases vs {sells} sales (30d)")
+        signals.append(f"Strong insider buying: {buys} purchases vs {sells} sales (30d)")
     elif net >= 1:
         score += 25
-        signals.append(f"🟢 Net insider buying: {buys} purchases, {sells} sales (30d)")
+        signals.append(f"Net insider buying: {buys} purchases, {sells} sales (30d)")
     elif net == 0 and buys == 0:
         score += 15  # No activity is neutral
     elif net == -1:
         score += 5
-        signals.append(f"🔴 Mild insider selling: {sells} sales vs {buys} purchases (30d)")
+        signals.append(f"Mild insider selling: {sells} sales vs {buys} purchases (30d)")
     else:
         score += 0
-        signals.append(f"🔴 Insider selling pressure: {sells} sales vs {buys} purchases (30d)")
+        signals.append(f"Insider selling pressure: {sells} sales vs {buys} purchases (30d)")
 
     if buy_val > 1_000_000:
         score += 5
-        signals.append(f"💰 Large insider buy: ${buy_val/1e6:.1f}M in purchases")
+        signals.append(f"Large insider buy: ${buy_val/1e6:.1f}M in purchases")
     elif buy_val > 100_000:
         score += 2
 
@@ -187,21 +187,21 @@ def _compute_sec_score(insider: dict, analyst: dict, recent_8k: int) -> tuple[in
     n = analyst.get("analyst_count", 0)
     if consensus == "Strong Buy" and n >= 10:
         score += 35
-        signals.append(f"📈 Strong Buy consensus ({n} analysts)")
+        signals.append(f"Strong Buy consensus ({n} analysts)")
     elif consensus == "Strong Buy":
         score += 28
-        signals.append(f"📈 Strong Buy consensus ({n} analysts)")
+        signals.append(f"Strong Buy consensus ({n} analysts)")
     elif consensus == "Buy" and n >= 10:
         score += 25
-        signals.append(f"📈 Buy consensus ({n} analysts)")
+        signals.append(f"Buy consensus ({n} analysts)")
     elif consensus == "Buy":
         score += 18
-        signals.append(f"📈 Buy consensus ({n} analysts)")
+        signals.append(f"Buy consensus ({n} analysts)")
     elif consensus == "Hold":
         score += 10
     elif consensus in ("Sell", "Strong Sell"):
         score += 0
-        signals.append(f"🔴 Analyst consensus: {consensus} ({n} analysts)")
+        signals.append(f"Analyst consensus: {consensus} ({n} analysts)")
 
     # ── Analyst upside (15 pts) ──
     upside = analyst.get("analyst_upside_pct")
@@ -209,19 +209,19 @@ def _compute_sec_score(insider: dict, analyst: dict, recent_8k: int) -> tuple[in
     if upside is not None:
         if upside >= 30:
             score += 15
-            signals.append(f"🎯 Analyst target: ${target} (+{upside:.0f}% upside)")
+            signals.append(f"Analyst target: ${target} (+{upside:.0f}% upside)")
         elif upside >= 15:
             score += 10
-            signals.append(f"🎯 Analyst target: ${target} (+{upside:.0f}% upside)")
+            signals.append(f"Analyst target: ${target} (+{upside:.0f}% upside)")
         elif upside >= 5:
             score += 5
         elif upside < -10:
-            signals.append(f"⚠️ Analyst target below market: ${target} ({upside:.0f}%)")
+            signals.append(f"Analyst target below market: ${target} ({upside:.0f}%)")
 
     # ── Recent 8-K catalysts (10 pts) ──
     if recent_8k >= 3:
         score += 10
-        signals.append(f"📋 {recent_8k} recent 8-K filings (active catalysts)")
+        signals.append(f"{recent_8k} recent 8-K filings (active catalysts)")
     elif recent_8k >= 1:
         score += 5
 

@@ -2,79 +2,91 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  background: var(--color-bg-card);
-  border-bottom: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-sm);
+  padding: 0 26px;
+  background: transparent;
+  border-bottom: 1px solid var(--line);
 }
 
 .links {
   display: flex;
-  gap: 0;
+  gap: 4px;
 }
 
 .link {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 18px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-text-secondary);
+  gap: 8px;
+  padding: 13px 16px;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  letter-spacing: 0.13em;
+  font-weight: 500;
+  color: var(--ink);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   transition: all var(--transition-fast);
 }
 
 .link:hover {
-  color: var(--imperial-purple);
-  background: var(--imperial-purple-glow);
+  color: var(--gold);
 }
 
 .active {
-  color: var(--imperial-purple);
-  border-bottom-color: var(--imperial-purple);
+  color: var(--gold);
+  border-bottom-color: var(--gold);
 }
 
 .icon {
-  font-size: 14px;
-  line-height: 1;
+  flex: none;
+  color: var(--ink-mut);
 }
+
+.link:hover .icon,
+.active .icon { color: var(--gold); }
 
 .labelGroup {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  line-height: 1.15;
 }
 
 .sub {
-  font-size: 9px;
+  font-family: var(--font-body);
+  font-size: 9.5px;
   font-weight: 400;
-  letter-spacing: 0.04em;
-  color: var(--color-text-tertiary);
-  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-dim);
+  text-transform: none;
   line-height: 1;
 }
 
 .scanBtn {
-  padding: 6px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
   border-radius: var(--radius-md);
-  border: 1px solid var(--imperial-purple);
-  background: var(--imperial-purple);
-  color: #fff;
+  border: 1px solid var(--gold);
+  background: var(--gold-bg);
+  color: var(--gold);
   font-size: var(--text-xs);
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-display);
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .scanBtn:hover:not(:disabled) {
-  background: var(--imperial-purple-light);
+  background: var(--gold);
+  color: #1a1610;
 }
 
 .scanBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.spin { animation: nav-spin 1s linear infinite; }
+@keyframes nav-spin { to { transform: rotate(360deg); } }

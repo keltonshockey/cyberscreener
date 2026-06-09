@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { Landmark, Scroll, Zap, Library, Globe, Play, RefreshCw } from '../ui/icons';
 import styles from './NavBar.module.css';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Basilica', sub: 'Dashboard', icon: '🏛️' },
-  { to: '/conviction', label: 'Conviction', sub: 'Rankings', icon: '📜' },
-  { to: '/pactum', label: 'Pactum', sub: 'Options Plays', icon: '⚖️' },
-  { to: '/archive', label: 'Archive', sub: 'Backtest', icon: '📚' },
-  { to: '/world', label: 'World', sub: '3D City', icon: '🗺️' },
+  { to: '/', label: 'Basilica', sub: 'today', Icon: Landmark },
+  { to: '/conviction', label: 'Forum', sub: 'long-term value', Icon: Scroll },
+  { to: '/pactum', label: 'Pactum', sub: 'tactical options', Icon: Zap },
+  { to: '/archive', label: 'Archive', sub: 'backtest', Icon: Library },
+  { to: '/world', label: 'World', sub: 'the city', Icon: Globe },
 ];
 
 export function NavBar({ onRunScan, scanRunning }) {
@@ -16,29 +17,27 @@ export function NavBar({ onRunScan, scanRunning }) {
   return (
     <nav className={styles.nav}>
       <div className={styles.links}>
-        {NAV_ITEMS.map(item => (
+        {NAV_ITEMS.map(({ to, label, sub, Icon }) => (
           <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
+            key={to}
+            to={to}
+            end={to === '/'}
             className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
           >
-            <span className={styles.icon}>{item.icon}</span>
+            <Icon size={15} className={styles.icon} />
             <span className={styles.labelGroup}>
-              {item.label}
-              <span className={styles.sub}>{item.sub}</span>
+              {label}
+              <span className={styles.sub}>{sub}</span>
             </span>
           </NavLink>
         ))}
       </div>
 
       {isAdmin && (
-        <button
-          className={styles.scanBtn}
-          onClick={onRunScan}
-          disabled={scanRunning}
-        >
-          {scanRunning ? '⟳ Scanning...' : '▶ Run Scan'}
+        <button className={styles.scanBtn} onClick={onRunScan} disabled={scanRunning}>
+          {scanRunning
+            ? <><RefreshCw size={13} className={styles.spin} /> Scanning…</>
+            : <><Play size={13} /> Run Scan</>}
         </button>
       )}
     </nav>

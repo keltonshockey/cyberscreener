@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Search, X, Zap } from '../ui/icons';
 
 export function SearchBar({ results = [] }) {
   const [query, setQuery] = useState('');
@@ -87,7 +88,7 @@ export function SearchBar({ results = [] }) {
         background: 'var(--color-bg)', border: '1px solid var(--color-border-subtle)',
         borderRadius: 8, padding: '6px 12px',
       }}>
-        <span style={{ fontSize: 13, opacity: 0.5 }}>{'🔍'}</span>
+        <Search size={14} style={{ opacity: 0.5, color: 'var(--ink-mut)' }} />
         <input
           ref={inputRef}
           type="text"
@@ -105,9 +106,9 @@ export function SearchBar({ results = [] }) {
         {query && (
           <button
             onClick={() => { setQuery(''); inputRef.current?.focus(); }}
-            style={{ border: 'none', background: 'none', color: 'var(--color-text-tertiary)', cursor: 'pointer', fontSize: 12 }}
+            style={{ border: 'none', background: 'none', color: 'var(--color-text-tertiary)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
           >
-            {'✕'}
+            <X size={13} />
           </button>
         )}
       </div>
@@ -158,11 +159,11 @@ export function SearchBar({ results = [] }) {
                 onMouseDown={e => { e.preventDefault(); e.stopPropagation(); handlePactumSelect(t.ticker); }}
                 style={{
                   border: 'none', background: 'none', cursor: 'pointer',
-                  fontSize: 11, color: 'var(--color-text-tertiary)', padding: '2px 4px',
+                  color: 'var(--color-text-tertiary)', padding: '2px 4px', display: 'grid', placeItems: 'center',
                 }}
                 title="Open in Pactum"
               >
-                {'⚖️'}
+                <Zap size={13} />
               </button>
             </div>
           ))}

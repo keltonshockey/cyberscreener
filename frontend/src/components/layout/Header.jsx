@@ -1,9 +1,12 @@
 import { useAuth } from '../../auth/AuthContext';
 import { SearchBar } from './SearchBar';
+import { useTheme } from '../../theme/useTheme';
+import { Sun, Moon, Scale } from '../ui/icons';
 import styles from './Header.module.css';
 
 export function Header({ onAuthClick, latest }) {
   const { user, profile, logout } = useAuth();
+  const { theme, toggle } = useTheme();
 
   return (
     <header className={styles.header}>
@@ -16,6 +19,14 @@ export function Header({ onAuthClick, latest }) {
       <SearchBar results={latest?.results || []} />
 
       <div className={styles.actions}>
+        <button
+          className={styles.themeBtn}
+          onClick={toggle}
+          title={theme === 'light' ? 'Switch to dark (Imperial Twilight)' : 'Switch to light (museum daylight)'}
+          aria-label="Toggle theme"
+        >
+          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
         {user ? (
           <div className={styles.userInfo}>
             <div className={styles.avatar}>
@@ -29,7 +40,7 @@ export function Header({ onAuthClick, latest }) {
           </div>
         ) : (
           <button className={styles.signInBtn} onClick={onAuthClick}>
-            {'⚔️'} Sign In
+            <Scale size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />Sign In
           </button>
         )}
       </div>

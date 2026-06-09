@@ -11,6 +11,9 @@ import secrets
 import logging
 from datetime import datetime, timedelta
 
+from core.signals_meta import classify_signal
+from core.text import strip_emoji
+
 logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("CYBERSCREENER_DB", "/app/data/cyberscreener.db")
@@ -77,6 +80,10 @@ def _migrate_scores_table(conn):
         # as implausible (and NULLed it). Lets downstream analysis segment/count
         # gated rows instead of conflating them with legitimately-absent IV.
         ("iv_suspect", "INTEGER DEFAULT 0"),
+        # sector_tags: JSON array of the multi-tag taxonomy (UI_OVERHAUL_PLAN §4),
+        # e.g. ["AI","Semis","Tech"]. Promotes the curated client map
+        # (frontend utils/sectors.js) into the data layer so chips are real.
+        ("sector_tags", "TEXT"),
     ]
 
     for col_name, col_type in new_columns:
@@ -86,6 +93,24 @@ def _migrate_scores_table(conn):
             except Exception:
                 pass  # Column might already exist from a partial migration
 
+    conn.commit()
+
+
+def _migrate_signals_table(conn):
+    """Add §6b relevance-metadata columns to an existing signals table."""
+    try:
+        cursor = conn.execute("PRAGMA table_info(signals)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+    except Exception:
+        return
+    if not existing_cols:
+        return
+    for col_name in ("stack", "polarity", "sector_context", "dedupe_key"):
+        if col_name not in existing_cols:
+            try:
+                conn.execute(f"ALTER TABLE signals ADD COLUMN {col_name} TEXT")
+            except Exception:
+                pass
     conn.commit()
 
 
@@ -200,6 +225,11 @@ def init_db():
             signal_type TEXT,
             signal_text TEXT,
             impact TEXT,
+            -- §6b relevance metadata (see core/signals_meta.classify_signal)
+            stack TEXT,            -- lt | options | both
+            polarity TEXT,         -- tailwind | headwind | event
+            sector_context TEXT,   -- general | cyber-demand | breach-headwind | suppress
+            dedupe_key TEXT,       -- normalized identity for collapsing repeats
             timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (scan_id) REFERENCES scans(id)
         );
@@ -243,6 +273,7 @@ def init_db():
     # not-yet-existing table), so a freshly created DB also gets every column that
     # save_scan's INSERT writes — keeping code and schema in agreement. ──
     _migrate_scores_table(conn)
+    _migrate_signals_table(conn)
 
     conn.commit()
     conn.close()
@@ -290,7 +321,8 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 threat_score, outage_status, breach_victim, demand_signal,
                 short_delta,
                 rc_score,
-                iv_suspect
+                iv_suspect,
+                sector_tags
             ) VALUES (
                 ?,?,?,?,
                 ?,?,
@@ -309,6 +341,7 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 ?,?,?,
                 ?,?,?,?,
                 ?,?,
+                ?,
                 ?
             )
         """, (
@@ -341,6 +374,7 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
             r.get("short_delta"),
             r.get("rc_score", 0),
             1 if r.get("iv_suspect") else 0,
+            json.dumps(r.get("sector_tags") or []),
         ))
 
         # Save price snapshot
@@ -351,13 +385,24 @@ def save_scan(results, intel_layers=None, duration_seconds=None, **kwargs):
                 (r["ticker"], today_str, r["price"])
             )
 
-        # Save signals
+        # Save signals — emoji-stripped text + §6b relevance metadata attached at
+        # generation (stack / polarity / sector_context / dedupe_key). `impact` is
+        # derived from polarity (the old emoji-sniffing test is dead now that the
+        # API emits no emoji). See core/signals_meta.classify_signal.
+        sector = r.get("sector")
+        breach = bool(r.get("breach_victim"))
         for reason in r.get("lt_reasons", []) + r.get("opt_reasons", []):
-            impact = "positive" if any(e in reason for e in ["🚀", "💎", "💰", "🎯", "🌋"]) else \
-                     "negative" if any(e in reason for e in ["⚠️", "🔴", "💸"]) else "neutral"
+            text = strip_emoji(reason)
+            if not text:
+                continue
+            meta = classify_signal(text, sector=sector, breach_victim=breach)
             conn.execute(
-                "INSERT INTO signals (scan_id, ticker, signal_type, signal_text, impact) VALUES (?, ?, ?, ?, ?)",
-                (scan_id, r["ticker"], "score", reason, impact)
+                "INSERT INTO signals "
+                "(scan_id, ticker, signal_type, signal_text, impact, "
+                " stack, polarity, sector_context, dedupe_key) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (scan_id, r["ticker"], "score", text, meta["impact"],
+                 meta["stack"], meta["polarity"], meta["sector_context"], meta["dedupe_key"])
             )
       except Exception as row_err:
         failed_rows += 1

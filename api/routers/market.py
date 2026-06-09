@@ -16,6 +16,8 @@ from fastapi import APIRouter, Query, HTTPException
 
 from db.models import get_db
 from core.scanner import get_weights, _iv_for_play, compute_directional_bias
+from core.signals_meta import classify_signal
+from core.text import strip_emoji
 from core.universe import (
     ALL_CYBER_TICKERS, ALL_ENERGY_TICKERS, ALL_DEFENSE_TICKERS, ALL_BROAD_TICKERS,
 )
@@ -73,16 +75,18 @@ def get_stats():
 
 # ── Market Indices ─────────────────────────────────────────────────────────────
 
+# 4th field is an ISO country/region code (not an emoji flag) — the API stays
+# emoji-free; the frontend can map the code to a flag glyph/icon if it wants one.
 INDICES = [
-    ("^GSPC",    "S&P 500",   "NYSE",    "🇺🇸"),
-    ("^IXIC",    "NASDAQ",    "NASDAQ",  "🇺🇸"),
-    ("^DJI",     "Dow Jones", "NYSE",    "🇺🇸"),
-    ("^GDAXI",   "DAX",       "XETRA",   "🇩🇪"),
-    ("^FTSE",    "FTSE 100",  "LSE",     "🇬🇧"),
-    ("^N225",    "Nikkei",    "TSE",     "🇯🇵"),
-    ("^HSI",     "Hang Seng", "HKEX",    "🇭🇰"),
-    ("^FCHI",    "CAC 40",    "EURONEXT","🇫🇷"),
-    ("^STOXX50E","STOXX 50",  "EURONEXT","🇪🇺"),
+    ("^GSPC",    "S&P 500",   "NYSE",    "US"),
+    ("^IXIC",    "NASDAQ",    "NASDAQ",  "US"),
+    ("^DJI",     "Dow Jones", "NYSE",    "US"),
+    ("^GDAXI",   "DAX",       "XETRA",   "DE"),
+    ("^FTSE",    "FTSE 100",  "LSE",     "GB"),
+    ("^N225",    "Nikkei",    "TSE",     "JP"),
+    ("^HSI",     "Hang Seng", "HKEX",    "HK"),
+    ("^FCHI",    "CAC 40",    "EURONEXT","FR"),
+    ("^STOXX50E","STOXX 50",  "EURONEXT","EU"),
 ]
 
 EXCHANGE_HOURS = {
@@ -387,27 +391,28 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
             vol_ratio=row.get("vol_ratio") or 1.0,
         )
         row["direction"] = direction
+        # Plain-text label — the frontend maps direction -> its own icon (no emoji).
         row["direction_label"] = {
-            "bearish": "📉 Bearish", "bullish": "📈 Bullish", "neutral": "↔ Neutral",
+            "bearish": "Bearish", "bullish": "Bullish", "neutral": "Neutral",
         }[direction]
 
         if row["direction"] == "neutral":
             continue
 
         if dte is not None and 1 <= dte <= 14:
-            row["catalyst"] = f"⚡ Earnings {dte}d"
+            row["catalyst"] = f"Earnings {dte}d"
         elif dte is not None and 14 < dte <= 30:
-            row["catalyst"] = f"📅 Earnings {dte}d"
+            row["catalyst"] = f"Earnings {dte}d"
         elif rsi < 30:
-            row["catalyst"] = "📉 Oversold"
+            row["catalyst"] = "Oversold"
         elif rsi > 70:
-            row["catalyst"] = "📈 Overbought"
+            row["catalyst"] = "Overbought"
         elif row.get("demand_signal"):
-            row["catalyst"] = "🌋 Demand Signal"
+            row["catalyst"] = "Demand Signal"
         elif row.get("bb_width") and row["bb_width"] < 12:
-            row["catalyst"] = "⟨⟩ BB Squeeze"
+            row["catalyst"] = "BB Squeeze"
         else:
-            row["catalyst"] = "📊 Technical"
+            row["catalyst"] = "Technical"
 
         row["combined_score"] = round(opt * 0.6 + lt * 0.4, 1)
         row["conviction"] = "HIGH" if row["combined_score"] >= 55 else "SOLID" if row["combined_score"] >= 45 else "WATCH"
@@ -516,13 +521,13 @@ def get_buy_zone(limit: int = Query(8, ge=1, le=15)):
             entry_signal = "Neutral RSI"
 
         if dte and 5 <= dte <= 30:
-            row["catalyst"] = f"📅 Earnings {dte}d · {entry_signal}"
+            row["catalyst"] = f"Earnings {dte}d · {entry_signal}"
         elif row.get("demand_signal"):
-            row["catalyst"] = f"🌋 Demand signal · {entry_signal}"
+            row["catalyst"] = f"Demand signal · {entry_signal}"
         elif rsi <= 30:
-            row["catalyst"] = "📉 Oversold — strong LT value entry"
+            row["catalyst"] = "Oversold — strong LT value entry"
         else:
-            row["catalyst"] = f"📊 Strong fundamentals · {entry_signal}"
+            row["catalyst"] = f"Strong fundamentals · {entry_signal}"
 
         row["combined_score"] = round((row.get("opt_score") or 0) * 0.6 + lt * 0.4, 1)
         results.append(row)
@@ -597,7 +602,7 @@ def get_inverse_plays(limit: int = Query(8, ge=1, le=15)):
         "q1_avg_return": q1_return,
         "q1_win_rate": q1_win_rate,
         "interpretation": (
-            "⚠️ Model is inversely correlated — these low-score tickers historically outperformed."
+            "Model is inversely correlated — these low-score tickers historically outperformed."
             if is_inverted
             else "Model is not currently inverted. Contrarian mode is precautionary."
         ),
@@ -609,20 +614,50 @@ def get_inverse_plays(limit: int = Query(8, ge=1, le=15)):
 
 @router.get("/signals/{ticker}/recent")
 def get_recent_signals(ticker: str, limit: int = Query(40, ge=5, le=100)):
-    """Return recent scoring signals for a ticker."""
+    """Return recent scoring signals for a ticker, each tagged with §6b relevance
+    metadata (stack / polarity / sector_context / dedupe_key) so the frontend feed
+    can group, color and dedupe on real data instead of client-side heuristics.
+
+    Metadata persisted at scan time is used when present; for older rows written
+    before the §6b columns existed it is computed live (cheap) so the endpoint is
+    always authoritative without waiting for a re-scan.
+    """
     t = ticker.upper()
     if not t.replace(".", "").isalnum() or len(t) > 10:
         raise HTTPException(status_code=400, detail="Invalid ticker")
     conn = get_db()
+    # Sector context for the live-compute fallback (and to keep old rows honest).
+    ctx = conn.execute(
+        "SELECT sector, breach_victim FROM scores WHERE ticker = ? "
+        "ORDER BY scan_id DESC LIMIT 1", (t,)
+    ).fetchone()
+    sector = ctx["sector"] if ctx else None
+    breach = bool(ctx["breach_victim"]) if ctx else False
+
     rows = conn.execute("""
-        SELECT sg.signal_text, sg.impact, sc.timestamp AS scan_ts
+        SELECT sg.signal_text, sg.impact, sg.stack, sg.polarity,
+               sg.sector_context, sg.dedupe_key, sc.timestamp AS scan_ts
         FROM signals sg
         JOIN scans sc ON sg.scan_id = sc.id
         WHERE sg.ticker = ?
         ORDER BY sg.id DESC LIMIT ?
     """, (t, limit)).fetchall()
     conn.close()
-    return {"ticker": t, "signals": [dict(r) for r in rows], "total": len(rows)}
+
+    signals = []
+    for r in rows:
+        d = dict(r)
+        text = strip_emoji(d.get("signal_text") or "")
+        d["signal_text"] = text
+        if not d.get("stack"):  # pre-§6b row -> classify live
+            meta = classify_signal(text, sector=sector, breach_victim=breach)
+            d["impact"] = d.get("impact") or meta["impact"]
+            d["stack"] = meta["stack"]
+            d["polarity"] = meta["polarity"]
+            d["sector_context"] = meta["sector_context"]
+            d["dedupe_key"] = meta["dedupe_key"]
+        signals.append(d)
+    return {"ticker": t, "signals": signals, "total": len(signals)}
 
 
 @router.get("/signals/momentum")

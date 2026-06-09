@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 _HF_API_TOKEN = os.environ.get("HF_API_TOKEN", "")
 _FINBERT_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
-_finbert_cache: dict = {}   # md5(text) → "positive"/"negative"/"neutral"
+_finbert_cache: dict = {}   # md5(text) "positive"/"negative"/"neutral"
 _finbert_available: bool = True  # flipped False on repeated failures
 
 
@@ -63,7 +63,7 @@ def _score_text_finbert(text: str) -> str:
             # FinBERT returns [[{label, score}, ...]]
             if data and isinstance(data, list) and isinstance(data[0], list):
                 labels = {item["label"].lower(): item["score"] for item in data[0]}
-                # Map FinBERT labels: positive → bullish, negative → bearish
+                # Map FinBERT labels: positive bullish, negative bearish
                 pos = labels.get("positive", 0)
                 neg = labels.get("negative", 0)
                 neu = labels.get("neutral", 0)
@@ -147,7 +147,7 @@ def _get_news_sentiment(ticker_obj, ticker_sym: str) -> dict:
 def _get_recommendation_sentiment(ticker_obj, ticker_sym: str) -> dict:
     """
     Parse recent analyst recommendation changes from yfinance.
-    Upgrades → bullish signal, downgrades → bearish signal.
+    Upgrades bullish signal, downgrades bearish signal.
     """
     result = {"upgrades": 0, "downgrades": 0, "total": 0, "status": "unavailable"}
     try:
@@ -210,15 +210,15 @@ def _compute_sentiment_score(news: dict, recs: dict) -> tuple:
 
         if bull_pct_raw >= 70:
             score += 60
-            signals.append(f"📰 Strong bullish news flow: {news['bull']}/{news['total']} positive headlines")
+            signals.append(f"Strong bullish news flow: {news['bull']}/{news['total']} positive headlines")
         elif bull_pct_raw >= 55:
             score += 45
-            signals.append(f"📰 Bullish news flow: {news['bull']}/{news['total']} positive headlines")
+            signals.append(f"Bullish news flow: {news['bull']}/{news['total']} positive headlines")
         elif bull_pct_raw >= 40:
             score += 30
         elif news["bear"] > news["bull"] * 1.5:
             score += 5
-            signals.append(f"📰 Bearish news flow: {news['bear']} negative vs {news['bull']} positive headlines")
+            signals.append(f"Bearish news flow: {news['bear']} negative vs {news['bull']} positive headlines")
         else:
             score += 20  # Mixed/neutral
     else:
@@ -229,18 +229,18 @@ def _compute_sentiment_score(news: dict, recs: dict) -> tuple:
         net = recs["upgrades"] - recs["downgrades"]
         if net >= 3:
             score += 40
-            signals.append(f"📈 {recs['upgrades']} analyst upgrades vs {recs['downgrades']} downgrades (30d)")
+            signals.append(f"{recs['upgrades']} analyst upgrades vs {recs['downgrades']} downgrades (30d)")
         elif net >= 1:
             score += 28
-            signals.append(f"📈 Net analyst upgrades: +{net} (30d)")
+            signals.append(f"Net analyst upgrades: +{net} (30d)")
         elif net == 0 and recs["upgrades"] > 0:
             score += 20
         elif net == -1:
             score += 10
-            signals.append(f"📉 Net analyst downgrade: {recs['downgrades']} downgrades (30d)")
+            signals.append(f"Net analyst downgrade: {recs['downgrades']} downgrades (30d)")
         elif net <= -2:
             score += 0
-            signals.append(f"📉 {recs['downgrades']} analyst downgrades vs {recs['upgrades']} upgrades (30d)")
+            signals.append(f"{recs['downgrades']} analyst downgrades vs {recs['upgrades']} upgrades (30d)")
     else:
         score += 20  # No rec data = neutral
 

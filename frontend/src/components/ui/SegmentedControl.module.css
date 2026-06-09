@@ -1,0 +1,30 @@
+.seg {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+}
+
+.seg button {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-mut);
+  background: none;
+  border: 0;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.seg button:hover { color: var(--ink); }
+
+.seg button.on {
+  background: var(--seg-on);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
