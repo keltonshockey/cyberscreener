@@ -1,6 +1,6 @@
 /**
  * QUAEST.TECH — universal hover-explain (§6).
- * Glance → the value. Hover/focus → frosted popover: plain-language
+ * Glance gives the value; hover/focus opens a frosted popover: plain-language
  * definition + why it matters + how it's computed. Optional onDeepDive
  * (click) for the deep dive (Ticker page / RC breakdown).
  *
@@ -9,7 +9,7 @@
  *   <Explain term="lt_score">LT value</Explain>  // wrap a label
  *   <Explain title="…" body="…" />               // ad-hoc copy
  */
-import { Info } from './icons';
+import { Info, ChevronRight } from './icons';
 import { getTerm } from '../../utils/glossary';
 import styles from './Explain.module.css';
 
@@ -35,7 +35,7 @@ export function Explain({ term, title, body, why, how, children, align = 'left',
         {howText && <span className={styles.line}><em>How</em> {howText}</span>}
         {onDeepDive && (
           <button className={styles.deep} onClick={(e) => { e.stopPropagation(); onDeepDive(); }}>
-            Open deep dive →
+            Open deep dive <ChevronRight size={12} style={{ verticalAlign: '-2px' }} />
           </button>
         )}
       </span>

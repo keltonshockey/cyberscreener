@@ -87,7 +87,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   _createAnimations() {
-    // Direction → sprite sheet row mapping
+    // Direction -> sprite sheet row mapping
     // Sheet layout: row 0=down, row 1=left, row 2=right, row 3=up
     // Each row has 4 frames (cols 0-3)
     const dirs = [

@@ -12,6 +12,8 @@ import {
   Sun, Moon, MessageCircle, Waves, Play, RefreshCw, Target,
   AlertCircle, ShieldAlert, Flame, Scale, Bookmark, X, Plus,
   Gauge, Percent, Ruler, Calendar, Award,
+  Mail, Crosshair, Sprout, Shield, Settings, Brain, Clock, Layers,
+  BarChart3, Coins, Compass, Hourglass, KeyRound, MessageSquare,
 } from 'lucide-react';
 
 export {
@@ -23,6 +25,8 @@ export {
   Sun, Moon, MessageCircle, Waves, Play, RefreshCw, Target,
   AlertCircle, ShieldAlert, Flame, Scale, Bookmark, X, Plus,
   Gauge, Percent, Ruler, Calendar, Award,
+  Mail, Crosshair, Sprout, Shield, Settings, Brain, Clock, Layers,
+  BarChart3, Coins, Compass, Hourglass, KeyRound, MessageSquare,
 };
 
 /** Directional lean glyph — bullish / bearish / neutral. */

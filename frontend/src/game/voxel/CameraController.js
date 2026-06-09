@@ -105,7 +105,7 @@ export class CameraController {
       this.radius += (this._radiusTarget - this.radius) * 0.06;
     }
 
-    // Apply spherical → cartesian
+    // Apply spherical -> cartesian
     this._applySpherical();
   }
 
@@ -159,10 +159,10 @@ export class CameraController {
     this._lastMouse.x = e.clientX;
     this._lastMouse.y = e.clientY;
 
-    // Horizontal drag → rotate theta
+    // Horizontal drag -> rotate theta
     this.theta -= dx * CAMERA_ORBIT_SPEED;
 
-    // Vertical drag → tilt phi
+    // Vertical drag -> tilt phi
     this.phi = Math.max(
       CAMERA_MIN_PHI,
       Math.min(CAMERA_MAX_PHI, this.phi + dy * CAMERA_ORBIT_SPEED)

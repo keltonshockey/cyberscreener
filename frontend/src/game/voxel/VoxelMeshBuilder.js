@@ -78,7 +78,7 @@ class GeomCollector {
   get faceCount() { return this.vOff / 4; }
 }
 
-// ─── Tile → Building classification ───
+// ─── Tile -> Building classification ───
 
 const _buildingBoundsCache = [];
 for (const [id, def] of Object.entries(BUILDING_DEFS)) {
@@ -163,7 +163,7 @@ export function buildVoxelMeshes(mapData, atlas) {
     if (layer === 'Walls') {
       return building.isEdge ? bc.exterior : bc.interior;
     }
-    // Ground / GroundDecor inside building → interior
+    // Ground / GroundDecor inside building -> interior
     return bc.interior;
   }
 
@@ -282,7 +282,7 @@ export function buildVoxelMeshes(mapData, atlas) {
 
 /**
  * Build a collision map from the tile data.
- * Returns a flat boolean array [row * MAP_COLS + col] → true if blocked.
+ * Returns a flat boolean array [row * MAP_COLS + col] -> true if blocked.
  */
 export function buildCollisionMap(mapData) {
   const blocked = new Array(MAP_COLS * MAP_ROWS).fill(false);

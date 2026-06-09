@@ -2,7 +2,7 @@
  * QUAEST.TECH — sector taxonomy (multi-tag, first-class chips · §4).
  *
  * The backend now emits a maintained multi-tag `sector_tags` per row
- * (core/sector_tags → scores.sector_tags, NVDA = AI + Semis + Tech). `tagsFor`
+ * (core/sector_tags -> scores.sector_tags, NVDA = AI + Semis + Tech). `tagsFor`
  * prefers that; the curated overlay + sector/subsector fallback below only cover
  * rows scanned before the column existed (and keep the chip ordering list local).
  */

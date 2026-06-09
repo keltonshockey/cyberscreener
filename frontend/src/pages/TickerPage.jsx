@@ -10,19 +10,21 @@ import { Card } from '../components/ui/Card';
 import { Metric } from '../components/ui/Metric';
 import { ScoreBar } from '../components/ui/ScoreBar';
 import { Badge } from '../components/ui/Badge';
+import { Explain } from '../components/ui/Explain';
+import { Scale, Scroll, Ruler, Zap, LineChart, Activity, Landmark } from '../components/ui/icons';
 import { SvgBarChart } from '../components/charts/SvgBarChart';
 import { fetchScoreHistory, fetchSignals, fetchChart } from '../api/endpoints';
 import { ltBreakdown, optBreakdown } from '../utils/scoring';
 import { fmtTS } from '../utils/formatters';
 import styles from './TickerPage.module.css';
 
-function ScoreBreakdownCard({ title, icon, score, breakdown }) {
+function ScoreBreakdownCard({ title, term, Icon, score, breakdown }) {
   if (!breakdown || !breakdown.length) return null;
   const color = score >= 60 ? 'var(--color-success)' : score >= 35 ? 'var(--color-warning)' : 'var(--color-danger)';
   return (
     <Card style={{ padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{icon} {title}</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>{Icon && <Icon size={15} />} {title}{term && <Explain term={term} />}</h3>
         <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', color }}>{Math.round(score)}</div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -32,7 +34,7 @@ function ScoreBreakdownCard({ title, icon, score, breakdown }) {
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ minWidth: 90 }}>
-                <span style={{ fontSize: 11, fontWeight: 600 }}>{comp.icon} {comp.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>{comp.Icon && <comp.Icon size={12} />} {comp.name}</span>
               </div>
               <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--color-border-subtle)', overflow: 'hidden' }}>
                 <div style={{ width: `${pct}%`, height: '100%', borderRadius: 4, background: barColor, transition: 'width 0.3s' }} />
@@ -137,23 +139,23 @@ export function TickerPage({ latest, tz }) {
               onClick={() => navigate('/pactum', { state: { ticker } })}
               className={styles.actionBtn}
             >
-              {'⚖️'} View Plays
+              <Zap size={14} style={{ verticalAlign: '-2px' }} /> View Plays
             </button>
             <button
               onClick={() => navigate('/conviction')}
               className={styles.actionBtnSecondary}
             >
-              {'📜'} Conviction
+              <Scroll size={14} style={{ verticalAlign: '-2px' }} /> Conviction
             </button>
           </div>
         </div>
 
         {/* Score summary */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginTop: 16 }}>
-          <Metric label="LT Score" value={ltScore} color={ltScore >= 60 ? 'var(--color-success)' : ltScore >= 35 ? 'var(--color-warning)' : typeof ltScore === 'number' ? 'var(--color-danger)' : undefined} />
-          <Metric label="Opt Score" value={optScore} color={optScore >= 50 ? 'var(--color-success)' : optScore >= 30 ? 'var(--color-warning)' : typeof optScore === 'number' ? 'var(--color-danger)' : undefined} />
-          <Metric label="RSI" value={rsi != null ? Math.round(rsi) : '—'} color={rsi < 30 ? 'var(--color-success)' : rsi > 70 ? 'var(--color-danger)' : 'var(--color-warning)'} sub={rsi < 30 ? 'Oversold' : rsi > 70 ? 'Overbought' : 'Neutral'} />
-          <Metric label="IV Rank" value={ivRank != null ? `${Math.round(ivRank)}%` : '—'} color={ivRank > 60 ? 'var(--color-danger)' : ivRank > 30 ? 'var(--color-warning)' : 'var(--color-success)'} />
+          <Metric label={<>LT Score <Explain term="lt_score" /></>} value={ltScore} color={ltScore >= 60 ? 'var(--color-success)' : ltScore >= 35 ? 'var(--color-warning)' : typeof ltScore === 'number' ? 'var(--color-danger)' : undefined} />
+          <Metric label={<>Opt Score <Explain term="opt_score" /></>} value={optScore} color={optScore >= 50 ? 'var(--color-success)' : optScore >= 30 ? 'var(--color-warning)' : typeof optScore === 'number' ? 'var(--color-danger)' : undefined} />
+          <Metric label={<>RSI <Explain term="rsi" /></>} value={rsi != null ? Math.round(rsi) : '—'} color={rsi < 30 ? 'var(--color-success)' : rsi > 70 ? 'var(--color-danger)' : 'var(--color-warning)'} sub={rsi < 30 ? 'Oversold' : rsi > 70 ? 'Overbought' : 'Neutral'} />
+          <Metric label={<>IV Rank <Explain term="iv_rank" /></>} value={ivRank != null ? `${Math.round(ivRank)}%` : '—'} color={ivRank > 60 ? 'var(--color-danger)' : ivRank > 30 ? 'var(--color-warning)' : 'var(--color-success)'} />
           <Metric label="Earnings" value={dte != null ? `${dte}d` : '—'} color={dte != null && dte <= 14 ? 'var(--color-success)' : 'var(--color-text-secondary)'} />
           <Metric label="Beta" value={beta != null ? Number(beta).toFixed(1) : '—'} />
           {pctFrom52w != null && <Metric label="From 52w High" value={`${pctFrom52w > 0 ? '+' : ''}${Number(pctFrom52w).toFixed(1)}%`} color={pctFrom52w > -10 ? 'var(--color-success)' : 'var(--color-warning)'} />}
@@ -163,14 +165,14 @@ export function TickerPage({ latest, tz }) {
 
       {/* Score breakdowns side by side */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <ScoreBreakdownCard title="Long-Term Score" icon="📐" score={row?.lt_score || 0} breakdown={ltBd} />
-        <ScoreBreakdownCard title="Options Score" icon="⚡" score={row?.opt_score || 0} breakdown={optBd} />
+        <ScoreBreakdownCard title="Long-Term Score" term="lt_score" Icon={Ruler} score={row?.lt_score || 0} breakdown={ltBd} />
+        <ScoreBreakdownCard title="Options Score" term="opt_score" Icon={Zap} score={row?.opt_score || 0} breakdown={optBd} />
       </div>
 
       {/* Price chart */}
       {pricePoints.length > 0 && (
         <Card style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{'📈'} Price History (90d)</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}><LineChart size={15} /> Price History (90d)</h3>
           <SvgBarChart
             data={pricePoints}
             dataKey="price"
@@ -210,7 +212,7 @@ export function TickerPage({ latest, tz }) {
       {/* Recent signals */}
       {sigList.length > 0 && (
         <Card style={{ padding: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{'📡'} Recent Signals</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}><Activity size={15} /> Recent Signals</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {sigList.slice(0, 10).map((s, i) => {
               const col = s.impact === 'positive' ? 'var(--color-success)' : s.impact === 'negative' ? 'var(--color-danger)' : 'var(--color-text-secondary)';
@@ -228,9 +230,9 @@ export function TickerPage({ latest, tz }) {
 
       {/* Quick nav */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '8px 0' }}>
-        <button onClick={() => navigate('/')} className={styles.navLink}>{'🏛️'} Basilica</button>
-        <button onClick={() => navigate('/pactum', { state: { ticker } })} className={styles.navLink}>{'⚖️'} Forge Plays</button>
-        <button onClick={() => navigate('/conviction')} className={styles.navLink}>{'📜'} Conviction</button>
+        <button onClick={() => navigate('/')} className={styles.navLink}><Landmark size={13} style={{ verticalAlign: '-2px' }} /> Basilica</button>
+        <button onClick={() => navigate('/pactum', { state: { ticker } })} className={styles.navLink}><Zap size={13} style={{ verticalAlign: '-2px' }} /> Forge Plays</button>
+        <button onClick={() => navigate('/conviction')} className={styles.navLink}><Scroll size={13} style={{ verticalAlign: '-2px' }} /> Conviction</button>
       </div>
     </div>
   );

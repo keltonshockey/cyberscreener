@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../components/ui/Card';
 import { Metric } from '../components/ui/Metric';
 import { Badge } from '../components/ui/Badge';
+import { Explain } from '../components/ui/Explain';
+import { RefreshCw, Settings, BarChart3, AlertTriangle, Hourglass } from '../components/ui/icons';
 import { SvgBarChart } from '../components/charts/SvgBarChart';
 import { SvgGroupedBarChart } from '../components/charts/SvgGroupedBarChart';
 import { SvgHorizBarChart } from '../components/charts/SvgHorizBarChart';
@@ -70,7 +72,7 @@ export function ArchivePage({ backtest: init, tz }) {
     const d = await runCalibrate(false);
     setCalRunning(false);
     if (d && d.status === 'calibrated') {
-      setCalMsg('✓ Weights updated');
+      setCalMsg('Weights updated');
       loadWH();
     } else {
       setCalMsg(d?.message || 'Insufficient data');
@@ -78,16 +80,16 @@ export function ArchivePage({ backtest: init, tz }) {
   };
 
   const retryBtn = (
-    <button onClick={() => { setRetries(0); loadBT(period, 0); }} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-      ↻ Retry
+    <button onClick={() => { setRetries(0); loadBT(period, 0); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 16px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+      <RefreshCw size={13} /> Retry
     </button>
   );
 
   if (loading) return <div className={styles.loading}>Running backtest…</div>;
   if (!data) return (
     <Card style={{ padding: 40, textAlign: 'center' }}>
-      <div style={{ fontSize: 36, marginBottom: 12 }}>
-        {error === 'computing' ? '⏳' : error ? '⚠️' : '📊'}
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: error === 'computing' ? 'var(--gold)' : error ? 'var(--loss)' : 'var(--ink-mut)' }}>
+        {error === 'computing' ? <Hourglass size={34} /> : error ? <AlertTriangle size={34} /> : <BarChart3 size={34} />}
       </div>
       <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>
         {error === 'computing' && 'Backtest computing in background…'}
@@ -170,7 +172,7 @@ export function ArchivePage({ backtest: init, tz }) {
             </span>
             {isAdmin && (
               <button className={styles.calibrateBtn} onClick={handleCalibrate} disabled={calRunning}>
-                {calRunning ? 'Calibrating…' : '⚙ Auto-Calibrate'}
+                {calRunning ? 'Calibrating…' : <><Settings size={13} style={{ verticalAlign: '-2px' }} /> Auto-Calibrate</>}
               </button>
             )}
             {calMsg && <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{calMsg}</span>}
@@ -178,13 +180,13 @@ export function ArchivePage({ backtest: init, tz }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginTop: 16 }}>
           <Metric
-            label="LT Correlation"
+            label={<>LT Correlation <Explain title="LT correlation" body="How strongly the long-term score lined up with realized forward returns over the lookback. Higher = the score is predictive." /></>}
             value={ltCorr != null ? ltCorr.toFixed(3) : '—'}
             color={ltCorr > 0.15 ? 'var(--color-success)' : ltCorr > 0.05 ? 'var(--color-warning)' : 'var(--color-danger)'}
             sub={ltCorr > 0.15 ? 'Strong predictive' : ltCorr > 0.05 ? 'Moderate signal' : 'Weak signal'}
           />
           <Metric
-            label={'Q5 − Q1 Spread'}
+            label={<>Q5 − Q1 Spread <Explain title="Q5 − Q1 spread" body="Average forward return of the top-scoring quintile minus the bottom quintile. A wide positive spread means high scores beat low scores." /></>}
             value={spread != null ? spread.toFixed(1) + '%' : '—'}
             color={spread > 3 ? 'var(--color-success)' : spread > 1 ? 'var(--color-warning)' : 'var(--color-danger)'}
             sub={spread > 3 ? 'Top scores beat bottom >3%' : 'Moderate separation'}

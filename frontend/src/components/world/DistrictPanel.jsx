@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useCallback, useRef } from 'react';
+import { X } from '../ui/icons';
 import { BasilicaPage } from '../../pages/BasilicaPage';
 import { ConvictionPage } from '../../pages/ConvictionPage';
 import { PactumPage } from '../../pages/PactumPage';
@@ -68,8 +69,8 @@ export function DistrictPanel({ district, onClose, stats, latest, backtest, tz, 
           <h2 className={s.title}>{district.name}</h2>
           <span className={s.desc}>{district.desc}</span>
         </div>
-        <button className={s.closeBtn} onClick={onClose} title="Close panel">
-          {'✕'}
+        <button className={s.closeBtn} onClick={onClose} title="Close panel" aria-label="Close panel">
+          <X size={16} />
         </button>
       </div>
 

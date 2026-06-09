@@ -11,6 +11,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { Landmark, Scroll, Zap, Library } from '../components/ui/icons';
 import { BuildingPanel } from '../components/ui/BuildingPanel';
 import { useAuth } from '../auth/AuthContext';
 import { VoxelGame } from '../game/VoxelGame';
@@ -196,10 +197,10 @@ export function WorldPage() {
           <div className={styles.sectionLabel}>Buildings</div>
           <div className={styles.legendList}>
             {[
-              { id: 'basilica', name: 'Basilica Julia', tab: 'Overview', color: '#665D1E', icon: '\u{1F3E6}' },
-              { id: 'curia', name: 'The Curia', tab: 'Conviction', color: '#B8860B', icon: '\u{1F3DB}' },
-              { id: 'subura', name: 'The Subura', tab: 'Pactum', color: '#888', icon: '\u{2696}' },
-              { id: 'tabularium', name: 'The Tabularium', tab: 'Archive', color: '#8B2500', icon: '\u{1F4DC}' },
+              { id: 'basilica', name: 'Basilica Julia', tab: 'Overview', color: '#665D1E', Icon: Landmark },
+              { id: 'curia', name: 'The Curia', tab: 'Conviction', color: '#B8860B', Icon: Scroll },
+              { id: 'subura', name: 'The Subura', tab: 'Pactum', color: '#888', Icon: Zap },
+              { id: 'tabularium', name: 'The Tabularium', tab: 'Archive', color: '#8B2500', Icon: Library },
             ].map(b => (
               <div
                 key={b.id}
@@ -207,7 +208,7 @@ export function WorldPage() {
               >
                 <span className={styles.legendDot} style={{ background: b.color }} />
                 <span className={styles.legendName}>
-                  <span style={{ marginRight: 4 }}>{b.icon}</span>
+                  <b.Icon size={13} style={{ marginRight: 6, verticalAlign: '-2px', color: 'var(--ink-mut)' }} />
                   {b.name}
                 </span>
                 <span className={styles.legendTab}>{b.tab}</span>
