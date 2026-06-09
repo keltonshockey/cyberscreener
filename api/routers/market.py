@@ -15,7 +15,7 @@ import yfinance as yf
 from fastapi import APIRouter, Query, HTTPException
 
 from db.models import get_db
-from core.scanner import get_weights, _iv_for_play
+from core.scanner import get_weights, _iv_for_play, compute_directional_bias
 from core.universe import (
     ALL_CYBER_TICKERS, ALL_ENERGY_TICKERS, ALL_DEFENSE_TICKERS, ALL_BROAD_TICKERS,
 )
@@ -328,6 +328,7 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
                s.threat_score, s.outage_status, s.breach_victim, s.demand_signal,
                s.bb_width, s.vol_ratio, s.sector, s.pct_from_52w_high, s.beta,
                s.iv_30d, s.horizon, s.recommended_expiry, s.iv_rank, s.market_cap_b,
+               s.sma_20, s.sma_50, s.perf_3m,
                s.rc_score
         FROM scores s
         INNER JOIN (
@@ -368,15 +369,27 @@ def get_killer_plays(limit: int = Query(8, ge=1, le=15)):
         if not has_catalyst and not has_strong_score:
             continue
 
-        if rsi > 65:
-            row["direction"] = "bearish"
-            row["direction_label"] = "📉 Bearish"
-        elif rsi < 38:
-            row["direction"] = "bullish"
-            row["direction_label"] = "📈 Bullish"
-        else:
-            row["direction"] = "neutral"
-            row["direction_label"] = "↔ Neutral"
+        # Unified, symmetric direction — same helper that scores the ticker and
+        # picks the option contract, so the label shown here always agrees with
+        # the generated play (no more "bearish" label on a Long Call). Was a
+        # bare RSI>65/<38 rule, which (a) disagreed with the contract's bias and
+        # (b) called RSI 66 "bearish" — PLAY-3's "RSI 73 is not enough" concern.
+        price = row.get("price")
+        sma20 = row.get("sma_20")
+        sma50 = row.get("sma_50")
+        above_sma20 = (price > sma20) if (price is not None and sma20) else None
+        above_sma50 = (price > sma50) if (price is not None and sma50) else None
+        direction, _b, _be, _conv = compute_directional_bias(
+            rsi=rsi,
+            price_above_sma20=above_sma20,
+            price_above_sma50=above_sma50,
+            perf_3m=row.get("perf_3m") or 0,
+            vol_ratio=row.get("vol_ratio") or 1.0,
+        )
+        row["direction"] = direction
+        row["direction_label"] = {
+            "bearish": "📉 Bearish", "bullish": "📈 Bullish", "neutral": "↔ Neutral",
+        }[direction]
 
         if row["direction"] == "neutral":
             continue

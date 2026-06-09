@@ -738,6 +738,75 @@ def _score_component(raw_score_0_to_1, weight):
     return round(max(0, min(1, raw_score_0_to_1)) * weight, 1)
 
 
+# Minimum signed-signal margin (bull - bear) required before a directional label
+# is assigned. Below this, the name is "neutral" (PLAY-3: a lone mildly-elevated
+# RSI must not be enough to call a direction — confluence or a true RSI extreme
+# is required). At 2, a single +1 signal can never flip the label.
+MIN_DIR_MARGIN = 2
+
+
+def compute_directional_bias(rsi=50, price_above_sma20=None, price_above_sma50=None,
+                             perf_3m=0, weekly_above_sma20=None, vol_ratio=1.0,
+                             whale_bias="neutral"):
+    """Single source of truth for short-term directional bias.
+
+    SYMMETRIC by construction: every signal that can push bullish has a mirror
+    that pushes bearish. This replaces three divergent, independently-coded
+    direction calculations (score_options, generate_plays, killer-plays) — the
+    prior bug was that the two SMA terms in generate_plays only ever added
+    *bullish* signal (price below SMA contributed nothing), structurally
+    biasing the rule ~69% long in an up-trending tape and making it unable to
+    express a clean bearish thesis. Now above SMA → bull, below SMA → bear.
+
+    RSI uses symmetric mean-reversion bands. Per HARDENING PLAY-3 the true
+    extremes (>78 / <28) carry the most weight; the mild 65-72 / 28-35 bands
+    carry only +1 so they cannot, alone, assign a directional label.
+
+    Returns (direction, bull_signals, bear_signals, conviction) where direction
+    is 'bullish' | 'bearish' | 'neutral' and conviction = max(bull, bear).
+    """
+    bull = 0
+    bear = 0
+
+    # RSI mean-reversion — symmetric graded bands.
+    if rsi is not None:
+        if rsi < 22:    bull += 3   # deeply oversold
+        elif rsi < 28:  bull += 2
+        elif rsi < 35:  bull += 1
+        elif rsi > 78:  bear += 3   # extremely overbought (PLAY-3 extreme)
+        elif rsi > 72:  bear += 2
+        elif rsi > 65:  bear += 1
+
+    # SMA position — SYMMETRIC (this is the bull-bias fix). None = unknown = skip.
+    if price_above_sma20 is True:    bull += 1
+    elif price_above_sma20 is False: bear += 1
+    if price_above_sma50 is True:    bull += 1
+    elif price_above_sma50 is False: bear += 1
+
+    # 3-month momentum — symmetric.
+    if perf_3m and perf_3m > 10:     bull += 1
+    elif perf_3m and perf_3m < -10:  bear += 1
+
+    # Weekly timeframe alignment — symmetric.
+    if weekly_above_sma20 is True:    bull += 1
+    elif weekly_above_sma20 is False: bear += 1
+
+    # Volume confirms whichever side already leads (never invents a direction).
+    if vol_ratio and vol_ratio > 1.5:
+        if bull > bear:   bull += 1
+        elif bear > bull: bear += 1
+
+    # Whale flow confirms the leading side only.
+    if whale_bias == "bullish" and bull >= bear and bull > 0:   bull += 1
+    elif whale_bias == "bearish" and bear >= bull and bear > 0: bear += 1
+
+    margin = abs(bull - bear)
+    if margin < MIN_DIR_MARGIN:
+        direction = "neutral"
+    else:
+        direction = "bullish" if bull > bear else "bearish"
+    return direction, bull, bear, max(bull, bear)
+
 
 def _compute_ticker_rc(d: dict) -> int:
     """Ticker-level RC (0-100): reflects setup quality for the scores table."""
@@ -1085,45 +1154,20 @@ def score_options(row, weights=None):
     above_sma50 = row.get("price_above_sma50")
     vr = row.get("vol_ratio") or 1.0
 
-    # Build directional signal strength
-    bull_signals = 0
-    bear_signals = 0
-
-    if rsi < 30:
-        bull_signals += 2  # Oversold = mean reversion bullish
-    elif rsi < 40:
-        bull_signals += 1
-    elif rsi > 70:
-        bear_signals += 2  # Overbought = mean reversion bearish
-    elif rsi > 60:
-        bear_signals += 1
-
-    if above_sma20:
-        bull_signals += 1
-    else:
-        bear_signals += 1
-    if above_sma50:
-        bull_signals += 1
-    else:
-        bear_signals += 1
-
-    # Volume confirms direction
-    if vr > 1.5:
-        max_dir = max(bull_signals, bear_signals)
-        if max_dir == bull_signals:
-            bull_signals += 1
-        else:
-            bear_signals += 1
-
-    # P4: Weekly timeframe alignment confirms or contradicts daily bias
-    weekly_above = row.get("weekly_above_sma20")
-    if weekly_above is True:
-        bull_signals += 1
-    elif weekly_above is False:
-        bear_signals += 1
-
-    total_conviction = max(bull_signals, bear_signals)
-    direction = "bullish" if bull_signals > bear_signals else "bearish" if bear_signals > bull_signals else "neutral"
+    # Unified, symmetric direction — single source of truth (see
+    # compute_directional_bias). score_options, generate_plays and killer-plays
+    # all derive direction from this one helper so the score, the option
+    # contract and the displayed label can never disagree (the ABBV-class
+    # "bearish ticker, Long Call contract" mismatch).
+    direction, bull_signals, bear_signals, total_conviction = compute_directional_bias(
+        rsi=rsi,
+        price_above_sma20=above_sma20,
+        price_above_sma50=above_sma50,
+        perf_3m=row.get("perf_3m") or 0,
+        weekly_above_sma20=row.get("weekly_above_sma20"),
+        vol_ratio=vr,
+        whale_bias=row.get("whale_bias") or "neutral",
+    )
 
     if total_conviction >= 4:
         raw = 1.0
@@ -1520,7 +1564,8 @@ def _atm_iv_pct(calls_df, puts_df, price, band=0.15):
 
 def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=None,
                    price_above_sma20=True, price_above_sma50=True, perf_3m=0,
-                   lt_score=0, opt_score=0, iv_rank=None, whale_bias="neutral"):
+                   lt_score=0, opt_score=0, iv_rank=None, whale_bias="neutral",
+                   weekly_above_sma20=None, vol_ratio=1.0):
     """Generate specific options plays based on the setup.
     Enhanced with liquidity filters, iron condor, position sizing, and no forced fallbacks.
     """
@@ -1536,25 +1581,26 @@ def generate_plays(ticker, price, chains, days_to_earnings=None, rsi=50, iv_30d=
     dte = (exp_date - datetime.today().date()).days
     expected_move = calc_expected_move(price, iv_30d or 30, dte)
 
-    # Determine directional bias
-    bullish_signals = 0
-    bearish_signals = 0
-    # RSI: symmetric treatment — deeply oversold/overbought both get strong signals
-    if rsi and rsi < 25:    bullish_signals += 3  # Deeply oversold
-    elif rsi and rsi < 35:  bullish_signals += 2
-    elif rsi and rsi < 40:  bullish_signals += 1
-    elif rsi and rsi > 80:  bearish_signals += 3  # Extremely overbought
-    elif rsi and rsi > 70:  bearish_signals += 2  # Overbought
-    elif rsi and rsi > 65:  bearish_signals += 1
-    if price_above_sma20: bullish_signals += 1
-    if price_above_sma50: bullish_signals += 1
-    if perf_3m and perf_3m > 10: bullish_signals += 1
-    elif perf_3m and perf_3m < -10: bearish_signals += 1
+    # Determine directional bias — unified, symmetric (single source of truth,
+    # see compute_directional_bias). Replaces the prior bull-biased inline rule
+    # whose two SMA terms only ever added *bullish* signal (a stock below its
+    # SMAs contributed nothing toward bearish), so an overbought name in an
+    # up-trend tied to neutral or stayed bullish and emitted a Long Call under a
+    # "bearish" label. Now below SMA → bear, and this is the same calc that
+    # produced the score and the killer-plays label, so the three agree.
+    bias, bullish_signals, bearish_signals, _dir_conviction = compute_directional_bias(
+        rsi=rsi,
+        price_above_sma20=price_above_sma20,
+        price_above_sma50=price_above_sma50,
+        perf_3m=perf_3m,
+        weekly_above_sma20=weekly_above_sma20,
+        vol_ratio=vol_ratio,
+        whale_bias=whale_bias,
+    )
 
     is_earnings_play = days_to_earnings is not None and 1 <= days_to_earnings <= 30
     is_high_iv = (iv_30d or 0) > 50
     is_extreme_iv = (iv_30d or 0) > 80  # Buying premium is poor value at this IV
-    bias = "bullish" if bullish_signals > bearish_signals else "bearish" if bearish_signals > bullish_signals else "neutral"
 
     # ── PLAY 1: Directional (Long Calls or Puts) ──
     # Skip naked long premium when IV is extreme — the credit spread (Play 6) is better then
