@@ -275,6 +275,38 @@ def init_db():
     _migrate_scores_table(conn)
     _migrate_signals_table(conn)
 
+    # options_plays historically came only from db/migrate_options_plays.py,
+    # so fresh DBs (tests, new deploys) lacked the journal table entirely.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS options_plays (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker          TEXT    NOT NULL,
+            generated_at    TEXT    NOT NULL,
+            horizon         TEXT,
+            strategy        TEXT,
+            strike          REAL,
+            expiry          TEXT,
+            dte             INTEGER,
+            entry_price     REAL,
+            entry_iv_rank   REAL,
+            lt_score        REAL,
+            opt_score       REAL,
+            rc_score        INTEGER,
+            direction       TEXT    DEFAULT 'bullish',
+            outcome_price   REAL,
+            outcome_date    TEXT,
+            pnl_pct         REAL,
+            status          TEXT    DEFAULT 'open',
+            notes           TEXT,
+            max_loss        REAL,
+            risk_reward_ratio REAL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_status ON options_plays(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_plays_expiry ON options_plays(expiry)")
+    from db.migrate_play_closure import run_migration as _migrate_play_closure
+    _migrate_play_closure(conn)
+
     conn.commit()
     conn.close()
 
@@ -714,20 +746,36 @@ def log_play(ticker: str, horizon: str, strategy: str, strike: float,
              max_loss: float = None, risk_reward_ratio: float = None) -> int:
     """
     Log a generated play to options_plays for P&L tracking.
-    Returns the new play ID.
+    Returns the new play ID, or the existing ID if an identical play is
+    already open (the pre-warm loop regenerates the same plays every scan;
+    without this guard the journal logged each one repeatedly — 216 rows for
+    83 distinct plays by 2026-06-09 — pseudo-replicating forward-test stats).
     """
     conn = get_db()
+    existing = conn.execute("""
+        SELECT id FROM options_plays
+        WHERE status = 'open' AND ticker = ? AND COALESCE(strategy,'') = ?
+          AND COALESCE(CAST(strike AS TEXT),'') = COALESCE(CAST(? AS TEXT),'')
+          AND COALESCE(expiry,'') = COALESCE(?,'')
+        LIMIT 1
+    """, (ticker, strategy or "", strike, expiry)).fetchone()
+    if existing:
+        conn.close()
+        return existing["id"]
+    entry_conviction = None
+    if opt_score is not None and lt_score is not None:
+        entry_conviction = round(0.6 * opt_score + 0.4 * lt_score, 2)
     cursor = conn.execute("""
         INSERT INTO options_plays
             (ticker, generated_at, horizon, strategy, strike, expiry, dte,
              entry_price, entry_iv_rank, lt_score, opt_score, rc_score,
-             direction, status, notes, max_loss, risk_reward_ratio)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+             direction, status, notes, max_loss, risk_reward_ratio, entry_conviction)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
     """, (
         ticker, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         horizon, strategy, strike, expiry, dte,
         entry_price, entry_iv_rank, lt_score, opt_score, rc_score,
-        direction, notes, max_loss, risk_reward_ratio,
+        direction, notes, max_loss, risk_reward_ratio, entry_conviction,
     ))
     play_id = cursor.lastrowid
     conn.commit()

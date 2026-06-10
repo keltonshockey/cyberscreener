@@ -18,7 +18,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.scanner import run_scan, ALL_TICKERS
-from db.models import init_db, save_scan, get_scan_count, get_open_plays, close_play, get_nearest_price, get_db
+from core.play_closure import close_due_plays
+from db.models import init_db, save_scan, get_scan_count, get_db
+from db.migrate_play_closure import run_migration as migrate_play_closure
 try:
     from intel.notifier import notify_momentum_digest, notify_top_plays_digest
     NOTIFIER_AVAILABLE = True
@@ -122,48 +124,24 @@ def _prewarm_killer_plays():
 
 def _check_play_outcomes():
     """
-    P2: Close expired plays and estimate P&L.
-    Runs once daily around market close (4 PM).
-    Uses stored price snapshots + ~4x ATM options leverage estimate.
+    Close plays strictly past expiry using settlement_v2 semantics
+    (core/play_closure.py, pre-registered in core/FORWARD_TEST_SEMANTICS.md).
+    Idempotent and cheap (indexed query on status+expiry), so it runs every
+    daemon iteration — the old hour==16 gate could skip whole days because a
+    scan+sleep cycle (~63 min) is longer than the one-hour window.
     """
-    today = datetime.now().strftime("%Y-%m-%d")
-    open_plays = get_open_plays(days_old=180)
-    closed = 0
-    for play in open_plays:
-        expiry = play.get("expiry")
-        if not expiry:
-            continue
-        # Close plays whose expiry has passed
-        if expiry <= today:
-            ticker = play["ticker"]
-            entry_price = play.get("entry_price")
-            direction = play.get("direction", "bullish")
-            # Get the price nearest to expiry
-            outcome_price = get_nearest_price(ticker, expiry, window_days=5)
-            if outcome_price and entry_price and entry_price > 0:
-                pct_move = (outcome_price - entry_price) / entry_price * 100
-                dir_sign = 1 if direction == "bullish" else -1
-                # ATM options rough leverage: ~4x the underlying move
-                pnl_pct = round(pct_move * dir_sign * 4, 1)
-                close_play(
-                    play_id=play["id"],
-                    outcome_price=outcome_price,
-                    pnl_pct=pnl_pct,
-                    outcome_date=today,
-                )
-                closed += 1
-            else:
-                # No price data available — close as expired with null P&L
-                close_play(
-                    play_id=play["id"],
-                    outcome_price=None,
-                    pnl_pct=None,
-                    outcome_date=today,
-                )
-                closed += 1
-
-    if closed > 0:
-        logger.info(f"📊 Play outcome check: closed {closed} expired plays")
+    conn = get_db()
+    try:
+        summary = close_due_plays(conn)
+    finally:
+        conn.close()
+    if summary["due"] > 0:
+        logger.info(
+            f"📊 Play outcome check: {summary['closed']} closed, "
+            f"{summary['unresolvable']} unresolvable, "
+            f"{summary['pending']} awaiting price data, "
+            f"{summary['errors']} errors (of {summary['due']} due)")
+    return summary
 
 
 def _prune_and_checkpoint():
@@ -240,7 +218,6 @@ def daemon_loop(interval_seconds=3600):
     logger.info(f"Starting scheduler daemon (interval: {interval_seconds}s)")
     logger.info(f"Tracking {len(ALL_TICKERS)} tickers")
 
-    _last_outcome_check_day: str = ""
     _last_prune_day: str = ""
 
     while True:
@@ -253,13 +230,12 @@ def daemon_loop(interval_seconds=3600):
             now = datetime.now()
             today_str = now.strftime("%Y-%m-%d")
 
-            # Nightly play outcome check at ~4 PM (market close)
-            if now.hour == 16 and _last_outcome_check_day != today_str:
-                try:
-                    _last_outcome_check_day = today_str
-                    _check_play_outcomes()
-                except Exception as oc_err:
-                    logger.error(f"Outcome check error: {oc_err}")
+            # Play outcome check — every iteration (idempotent; only plays
+            # strictly past expiry are touched, so frequency is harmless)
+            try:
+                _check_play_outcomes()
+            except Exception as oc_err:
+                logger.error(f"Outcome check error: {oc_err}")
 
             # Nightly DB prune + WAL checkpoint at ~2 AM — keeps DB under control
             if now.hour == 2 and _last_prune_day != today_str:
@@ -280,11 +256,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CyberScreener Scheduler")
     parser.add_argument("--daemon", action="store_true", help="Run in daemon mode")
     parser.add_argument("--interval", type=int, default=3600, help="Seconds between scans (default: 3600)")
+    parser.add_argument("--close-outcomes", action="store_true",
+                        help="Run the play-closure pass once and exit (no scan)")
     args = parser.parse_args()
 
     init_db()
+    migrate_play_closure()
 
-    if args.daemon:
+    if args.close_outcomes:
+        s = _check_play_outcomes()
+        print(f"closed={s['closed']} unresolvable={s['unresolvable']} "
+              f"pending={s['pending']} errors={s['errors']} due={s['due']}")
+    elif args.daemon:
         daemon_loop(args.interval)
     else:
         run_scheduled_scan()
