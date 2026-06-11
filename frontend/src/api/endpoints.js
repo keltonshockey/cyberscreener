@@ -31,6 +31,8 @@ export const augurLeaderboard = () => api('/augur/leaderboard/top');
 
 // ── Scores ──
 export const fetchStats = () => api('/stats');
+// Baseline-vs-layers config: membership, captions, ref weights (SESSION-BASELINE-WEIGHTS).
+export const fetchLayers = () => api('/layers');
 export const fetchLatestScores = (limit = 600) => api(`/scores/latest?limit=${limit}`);
 export const fetchPersonalizedScores = (limit = 600) => api(`/scores/latest/personalized?limit=${limit}`);
 export const fetchScoreHistory = (ticker, days = 180) => api(`/scores/${ticker}?days=${days}`);

@@ -271,6 +271,8 @@ EXPECTED_PLAY_COLUMNS = {
     "risk_reward_ratio": 1.8,
     # derived at log time: 0.6*opt + 0.4*lt, the gate's bucketing key
     "entry_conviction": round(0.6 * 64.25 + 0.4 * 71.5, 2),
+    # scoring-regime cohort stamped at log time (SESSION-BASELINE-WEIGHTS)
+    "score_version": "v2-baseline",
 }
 
 

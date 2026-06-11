@@ -25,11 +25,12 @@ import {
 } from '../components/ui/icons';
 import {
   fetchScoreHistory, fetchSignals, fetchWatchlist, addWatchlistTicker, removeWatchlistTicker,
-  fetchSparklines,
+  fetchSparklines, fetchLayers,
 } from '../api/endpoints';
 import {
   ltBreakdown, optBreakdown, rowDirection, convictionScore, trendSeries,
 } from '../utils/scoring';
+import { applyLayerView, composableLayers } from '../utils/layers';
 import { tagsFor, tagCounts, SECTOR_TAGS } from '../utils/sectors';
 import { classifySignals } from '../utils/signals';
 import styles from './ConvictionPage.module.css';
@@ -86,6 +87,10 @@ export function ConvictionPage({ latest }) {
   const [watchlist, setWatchlist] = useState(() => new Set());
   const [wlOnly, setWlOnly] = useState(false);
   const [sparks, setSparks] = useState(() => ({}));
+  // Baseline-vs-layers: config from /layers; user-selected experimental layers.
+  const [layersCfg, setLayersCfg] = useState(null);
+  const [activeLayers, setActiveLayers] = useState(() => new Set());
+  const [layersOpen, setLayersOpen] = useState(false);
   const detailRef = useRef(null);
 
   useEffect(() => {
@@ -125,6 +130,24 @@ export function ConvictionPage({ latest }) {
     if (location.state?.ticker) load(location.state.ticker);
   }, [location.state?.ticker, load]);
 
+  // Layers config (captions + ref weights) — served by /layers, never hard-coded.
+  useEffect(() => {
+    fetchLayers().then(setLayersCfg).catch(() => setLayersCfg(null));
+  }, []);
+
+  const toggleLayer = (key) => setActiveLayers(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+
+  // Rows the grid actually shows: baseline scores by default; an explicitly
+  // experimental recomposed view when the user adds layers.
+  const viewResults = useMemo(
+    () => applyLayerView(results, activeLayers, layersCfg),
+    [results, activeLayers, layersCfg],
+  );
+
   // Default sort follows the active stack.
   useEffect(() => {
     setSortKey(stack === 'options' ? 'opt' : 'conviction');
@@ -145,7 +168,7 @@ export function ConvictionPage({ latest }) {
   const rows = useMemo(() => {
     const col = COLUMNS.find(c => c.key === sortKey) || COLUMNS[3];
     const dir = sortDir === 'asc' ? 1 : -1;
-    return results
+    return viewResults
       .filter(r => !wlOnly || watchlist.has(r.ticker))
       .filter(r => tags.size === 0 || tagsFor(r).some(t => tags.has(t)))
       .slice()
@@ -154,7 +177,7 @@ export function ConvictionPage({ latest }) {
         if (typeof va === 'string') return va.localeCompare(vb) * dir;
         return ((va ?? -Infinity) - (vb ?? -Infinity)) * dir;
       });
-  }, [results, tags, wlOnly, watchlist, sortKey, sortDir]);
+  }, [viewResults, tags, wlOnly, watchlist, sortKey, sortDir]);
 
   const toggleWatch = async (ticker, e) => {
     e.stopPropagation();
@@ -265,6 +288,56 @@ export function ConvictionPage({ latest }) {
           </div>
         </div>
       </div>
+
+      {/* ── Layers: baseline by default; user-added layers are an experimental view ── */}
+      {layersCfg && (
+        <div className={styles.layersBar}>
+          <button className={styles.menuBtn} onClick={() => setLayersOpen(o => !o)}>
+            <Activity size={13} /> Layers {activeLayers.size > 0 ? `(${activeLayers.size} added)` : '(baseline only)'} <ChevronDown size={12} />
+          </button>
+          {activeLayers.size > 0 && (
+            <>
+              <span className={styles.expBadge}>
+                EXPERIMENTAL VIEW - includes unvalidated layers; the baseline is the only scored claim
+              </span>
+              <button className={styles.layerReset} onClick={() => setActiveLayers(new Set())}>
+                Reset to baseline
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {layersCfg && layersOpen && (
+        <Card className={styles.layersPanel}>
+          <div className={styles.baselineNote}>
+            Baseline ({layersCfg.score_version}): LT = Valuation, Opt = Asymmetry - the only
+            components with pre-registered out-of-sample evidence. Direction comes from the
+            symmetric rule (unweighted). Layers below stay computed every scan and can be
+            added to your view; promotion to the baseline follows PROMOTION_CRITERIA.md.
+          </div>
+          {['lt', 'opt'].map(stk => (
+            <div key={stk}>
+              <div className={styles.layerGroupTitle}>
+                {stk === 'lt' ? 'Long-term layers' : 'Options layers'}
+              </div>
+              {composableLayers(layersCfg, stk).map(l => (
+                <label key={l.key} className={styles.layerRow}>
+                  <input
+                    type="checkbox"
+                    checked={activeLayers.has(l.key)}
+                    onChange={() => toggleLayer(l.key)}
+                  />
+                  <span className={styles.layerName}>
+                    {l.key.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase())}
+                  </span>
+                  <span className={styles.layerStatus}>{l.status}</span>
+                  <span className={styles.layerCaption}>{l.caption}</span>
+                </label>
+              ))}
+            </div>
+          ))}
+        </Card>
+      )}
 
       {/* ── Detail panel (selected) ── */}
       {selRow && (

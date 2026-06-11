@@ -1,0 +1,79 @@
+{
+  "_doc": "Single source of truth for BASELINE vs LAYERS scoring (DEEP_REVIEW_2026-06-11 / SESSION-BASELINE-WEIGHTS). Baseline = only components with pre-registered statistical justification; everything else stays computed + persisted but carries zero base weight and is exposed as an optional user-addable layer. Membership changes ONLY per PROMOTION_CRITERIA.md (repo root). ref_weight = the legacy composite weight, used (a) to keep persisted component-point history comparable across the transition and (b) to renormalize user layer views.",
+  "score_version": "v2-baseline",
+  "legacy_score_version": "v1-legacy",
+  "baseline": {
+    "lt": { "valuation": 100 },
+    "opt": { "asymmetry": 100 }
+  },
+  "ref_weights": {
+    "_doc": "Legacy-composite weights for EVERY component (baseline + layers). Used to (a) keep persisted component-point columns comparable across the transition and (b) renormalize client-side layer views: view = sum(raw_k * ref_w_k) / sum(ref_w_k) * 100 over {baseline + selected layers}. Baseline alone reduces to the pure baseline score; all layers selected reproduces the legacy composite (minus the earnings multiplier).",
+    "lt": { "rule_of_40": 25, "valuation": 20, "fcf_margin": 15, "trend": 15, "earnings_quality": 10, "discount_momentum": 15 },
+    "opt": { "iv_context": 29, "directional": 28, "technical": 23, "liquidity": 10, "asymmetry": 10 }
+  },
+  "direction_picker": {
+    "source": "compute_directional_bias",
+    "note": "The symmetric directional rule (PR #6) picks play direction and labels but carries ZERO baseline score weight: its +0.05-0.06 signed IC is from one 70-day regime and fails the two-sub-period consistency bar. Re-evaluate at the 250d re-run."
+  },
+  "baseline_evidence": {
+    "valuation": "RESULT_LT_RECONSTRUCTION_2026-06-08.md: IC +0.038@6mo (t=+6.9), +0.055@12mo (t=+11.4), sign-consistent 2014-21 AND 2021-25, OOS quintile +2.5%/6mo +5.9%/12mo. Only LT component clearing Bonferroni.",
+    "asymmetry": "SIGNAL_ANALYSIS_2026-06-08.md: IC +0.083@21d (t=+10.1), 93% hit rate; the only positive Opt component OOS. Caveat: measured on the Feb-Jun 2026 regime only - first baseline component up for the 250d re-check."
+  },
+  "layers": {
+    "rule_of_40": {
+      "stack": "lt", "ref_weight": 25, "status": "display-only",
+      "caption": "Sign flips across regimes in the decade PIT test (2014-21 vs 2021-25); inflated by M+A-driven growth on acquisitive names. Display only as of 2026-06.",
+      "evidence": "RESULT_LT_RECONSTRUCTION_2026-06-08.md; RESULT_QUALITY_GATES_2026-06-09.md (B1: IC 3x weaker on M+A names)"
+    },
+    "fcf_margin": {
+      "stack": "lt", "ref_weight": 15, "status": "display-only",
+      "caption": "IC approximately zero in the decade PIT test. Display only as of 2026-06.",
+      "evidence": "RESULT_LT_RECONSTRUCTION_2026-06-08.md"
+    },
+    "trend": {
+      "stack": "lt", "ref_weight": 15, "status": "display-only",
+      "caption": "Sign flips across regimes in the decade PIT test. Display only as of 2026-06.",
+      "evidence": "RESULT_LT_RECONSTRUCTION_2026-06-08.md"
+    },
+    "earnings_quality": {
+      "stack": "lt", "ref_weight": 10, "status": "display-only",
+      "caption": "Sign flips across regimes in the decade PIT test. Display only as of 2026-06.",
+      "evidence": "RESULT_LT_RECONSTRUCTION_2026-06-08.md"
+    },
+    "discount_momentum": {
+      "stack": "lt", "ref_weight": 15, "status": "watch",
+      "caption": "Borderline signal (t about 2.2) - below the t>=3 promotion bar. Watch candidate as of 2026-06.",
+      "evidence": "RESULT_LT_RECONSTRUCTION_2026-06-08.md"
+    },
+    "iv_context": {
+      "stack": "opt", "ref_weight": 29, "status": "display-only",
+      "caption": "IV history was 32% corrupted until the 2026-06-08 ATM derivation fix; needs a clean post-fix re-baseline before any weight. Display only.",
+      "evidence": "RESULT_IV_INGEST_2026-06-08.md; SIGNAL_ANALYSIS_2026-06-08.md"
+    },
+    "directional": {
+      "stack": "opt", "ref_weight": 28, "status": "direction-picker",
+      "caption": "Picks play direction and labels (symmetric rule, PR #6) but is unweighted in the baseline: +IC measured on one regime only, not yet durable. Re-evaluate at the 250d re-run.",
+      "evidence": "RESULT_DIRECTIONAL_OOS_2026-06-08.md"
+    },
+    "technical": {
+      "stack": "opt", "ref_weight": 23, "status": "display-only",
+      "caption": "ANTI-predictive out-of-sample (IC -0.121, t -11) as of 2026-06. Display only.",
+      "evidence": "SIGNAL_ANALYSIS_2026-06-08.md"
+    },
+    "liquidity": {
+      "stack": "opt", "ref_weight": 10, "status": "display-only",
+      "caption": "Execution-quality proxy with no return evidence either way. Display only.",
+      "evidence": "SIGNAL_ANALYSIS_2026-06-08.md"
+    },
+    "earnings_catalyst": {
+      "stack": "opt", "ref_weight": 0, "status": "multiplier-layer",
+      "caption": "Final-score multiplier in the legacy composite (x1.3 inside 3-14d of earnings); zero for >90% of tickers on any day. Excluded from the baseline; shown as context only.",
+      "evidence": "SIGNAL_ANALYSIS_2026-06-08.md"
+    },
+    "threat_modifier": {
+      "stack": "opt", "ref_weight": 0, "status": "display-only",
+      "caption": "News/outage/breach context modifier from the intel layer. Mutated legacy scores additively; in the baseline it is recorded (threat_score column + signals) but never moves the score.",
+      "evidence": "no OOS evidence either way as of 2026-06"
+    }
+  }
+}
