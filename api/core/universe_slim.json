@@ -1,0 +1,929 @@
+{
+  "_doc": "Slim scanning universe (SESSION-SLIM-SCOPE, DEEP_REVIEW_2026-06-11): ~100 liquid names so the 2 evidenced signals are measured on clean chains instead of diluted across 480. Selection is reproducible: scripts/build_universe.py against the recorded scan snapshot. Scanner additionally unions in any ticker with OPEN journal plays at scan time (journal continuity is dynamic, not a static list). Set CYBERSCREENER_FULL_UNIVERSE=1 to revert to the full universe.",
+  "enabled": true,
+  "built_from_scan": 1463,
+  "built_at": "2026-06-11",
+  "criteria": {
+    "market_cap_floor_b": 1.0,
+    "iv_suspect_excluded_below_cap_b": 5.0,
+    "thesis_sectors_kept_whole": [
+      "cyber",
+      "energy",
+      "defense"
+    ],
+    "broad_quotas_top_by_cap": {
+      "Technology": 14,
+      "Health Care": 10,
+      "Financials": 10,
+      "Industrials": 8,
+      "Communication": 4
+    },
+    "options_liquidity": "selection-time proxy = market cap (per-strike OI/spread not in scores); point-of-trade enforcement = the existing hard liquidity gate in play generation"
+  },
+  "exclusion_reasons": {
+    "sub_1b_cap": "market cap under $1B: single-digit-OI chains, IV noise",
+    "iv_suspect_small": "IV flagged unreliable on the selection scan AND cap under $5B - small flagged chains are noise; mega-cap flags are read artifacts and kept",
+    "broad_subsector_cut": "Consumer Disc / Consumer Staples / Materials / Real Estate / Utilities / Energy Broad cut as whole categories: outside the deep-review sector mix (cyber, tech, defense, health, financials, industrials) and none carried evidence; revivable by config edit",
+    "broad_over_quota": "below the top-N by market cap within a kept broad subsector"
+  },
+  "always_include": [],
+  "sector_counts": {
+    "cyber": 32,
+    "energy": 12,
+    "defense": 9,
+    "broad/Communication": 4,
+    "broad/Financials": 10,
+    "broad/Health Care": 10,
+    "broad/Industrials": 8,
+    "broad/Technology": 14
+  },
+  "tickers": {
+    "AAPL": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 4313.7
+    },
+    "ABBV": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 399.1
+    },
+    "ABT": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 155.6
+    },
+    "ADI": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 194.5
+    },
+    "AES": {
+      "sector": "energy",
+      "subsector": "Solar / Clean Energy",
+      "market_cap_b": 10.5
+    },
+    "AKAM": {
+      "sector": "cyber",
+      "subsector": "Cloud & Network Security",
+      "market_cap_b": 18.7
+    },
+    "AMAT": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 419.3
+    },
+    "AMD": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 754.8
+    },
+    "AMGN": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 189.3
+    },
+    "AMT": {
+      "sector": "energy",
+      "subsector": "Data Center REITs",
+      "market_cap_b": 87.8
+    },
+    "ATEN": {
+      "sector": "cyber",
+      "subsector": "Network Hardware",
+      "market_cap_b": 2.3
+    },
+    "AVAV": {
+      "sector": "defense",
+      "subsector": "Drones / Autonomy",
+      "market_cap_b": 9.0
+    },
+    "AVGO": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 1789.8
+    },
+    "AXP": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 212.9
+    },
+    "BAC": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 386.9
+    },
+    "BAH": {
+      "sector": "cyber",
+      "subsector": "Gov / Defense Cyber",
+      "market_cap_b": 9.2
+    },
+    "BBAI": {
+      "sector": "cyber",
+      "subsector": "Gov / Defense Cyber",
+      "market_cap_b": 1.9
+    },
+    "BRK-B": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 1040.1
+    },
+    "C": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 230.0
+    },
+    "CACI": {
+      "sector": "cyber",
+      "subsector": "Gov / Defense Cyber",
+      "market_cap_b": 11.7
+    },
+    "CAT": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 405.2
+    },
+    "CCJ": {
+      "sector": "energy",
+      "subsector": "Nuclear Power",
+      "market_cap_b": 42.2
+    },
+    "CEG": {
+      "sector": "energy",
+      "subsector": "Nuclear Power",
+      "market_cap_b": 87.1
+    },
+    "CHKP": {
+      "sector": "cyber",
+      "subsector": "Cloud & Network Security",
+      "market_cap_b": 12.8
+    },
+    "CRWD": {
+      "sector": "cyber",
+      "subsector": "Platform Giants",
+      "market_cap_b": 173.8
+    },
+    "CSCO": {
+      "sector": "cyber",
+      "subsector": "Platform Giants",
+      "market_cap_b": 473.8
+    },
+    "DDOG": {
+      "sector": "cyber",
+      "subsector": "AI-Powered / Next-Gen",
+      "market_cap_b": 81.7
+    },
+    "DE": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 151.2
+    },
+    "DLR": {
+      "sector": "energy",
+      "subsector": "Data Center REITs",
+      "market_cap_b": 64.4
+    },
+    "DT": {
+      "sector": "cyber",
+      "subsector": "Mid/Small Cap",
+      "market_cap_b": 11.8
+    },
+    "EQIX": {
+      "sector": "energy",
+      "subsector": "Data Center REITs",
+      "market_cap_b": 102.2
+    },
+    "ESTC": {
+      "sector": "cyber",
+      "subsector": "Mid/Small Cap",
+      "market_cap_b": 6.3
+    },
+    "ETN": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 148.4
+    },
+    "ETR": {
+      "sector": "energy",
+      "subsector": "Nuclear Power",
+      "market_cap_b": 50.8
+    },
+    "FFIV": {
+      "sector": "cyber",
+      "subsector": "Cloud & Network Security",
+      "market_cap_b": 22.1
+    },
+    "FSLR": {
+      "sector": "energy",
+      "subsector": "Solar / Clean Energy",
+      "market_cap_b": 28.4
+    },
+    "FTNT": {
+      "sector": "cyber",
+      "subsector": "Platform Giants",
+      "market_cap_b": 105.2
+    },
+    "GD": {
+      "sector": "defense",
+      "subsector": "Prime Defense",
+      "market_cap_b": 97.1
+    },
+    "GE": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 337.4
+    },
+    "GEN": {
+      "sector": "cyber",
+      "subsector": "Endpoint Detection",
+      "market_cap_b": 14.5
+    },
+    "GEV": {
+      "sector": "energy",
+      "subsector": "Power Generation",
+      "market_cap_b": 241.9
+    },
+    "GILD": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 155.9
+    },
+    "GOOGL": {
+      "sector": "cyber",
+      "subsector": "AI-Powered / Next-Gen",
+      "market_cap_b": 4238.8
+    },
+    "GS": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 298.0
+    },
+    "HON": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 134.4
+    },
+    "IBM": {
+      "sector": "cyber",
+      "subsector": "Enterprise GRC",
+      "market_cap_b": 256.1
+    },
+    "INTC": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 559.2
+    },
+    "JNJ": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 577.2
+    },
+    "JPM": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 832.1
+    },
+    "KLAC": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 300.1
+    },
+    "KTOS": {
+      "sector": "defense",
+      "subsector": "Drones / Autonomy",
+      "market_cap_b": 10.6
+    },
+    "LDOS": {
+      "sector": "cyber",
+      "subsector": "Gov / Defense Cyber",
+      "market_cap_b": 15.4
+    },
+    "LHX": {
+      "sector": "defense",
+      "subsector": "Prime Defense",
+      "market_cap_b": 58.0
+    },
+    "LLY": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 1029.8
+    },
+    "LMT": {
+      "sector": "defense",
+      "subsector": "Prime Defense",
+      "market_cap_b": 126.0
+    },
+    "LRCX": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 430.6
+    },
+    "LUNR": {
+      "sector": "defense",
+      "subsector": "Space",
+      "market_cap_b": 4.8
+    },
+    "MA": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 429.5
+    },
+    "META": {
+      "sector": "broad",
+      "subsector": "Communication",
+      "market_cap_b": 1422.2
+    },
+    "MRK": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 299.8
+    },
+    "MS": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 328.2
+    },
+    "MSFT": {
+      "sector": "cyber",
+      "subsector": "AI-Powered / Next-Gen",
+      "market_cap_b": 2859.5
+    },
+    "MU": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 1031.1
+    },
+    "NEE": {
+      "sector": "energy",
+      "subsector": "Solar / Clean Energy",
+      "market_cap_b": 177.2
+    },
+    "NET": {
+      "sector": "cyber",
+      "subsector": "Cloud & Network Security",
+      "market_cap_b": 79.5
+    },
+    "NFLX": {
+      "sector": "broad",
+      "subsector": "Communication",
+      "market_cap_b": 341.3
+    },
+    "NOC": {
+      "sector": "defense",
+      "subsector": "Prime Defense",
+      "market_cap_b": 79.2
+    },
+    "NRG": {
+      "sector": "energy",
+      "subsector": "Nuclear Power",
+      "market_cap_b": 25.6
+    },
+    "NTCT": {
+      "sector": "cyber",
+      "subsector": "Network Hardware",
+      "market_cap_b": 2.9
+    },
+    "NVDA": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 4837.7
+    },
+    "OKTA": {
+      "sector": "cyber",
+      "subsector": "Identity & Access",
+      "market_cap_b": 20.3
+    },
+    "ORCL": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 506.6
+    },
+    "OTEX": {
+      "sector": "cyber",
+      "subsector": "Threat Intel / IR",
+      "market_cap_b": 5.2
+    },
+    "PANW": {
+      "sector": "cyber",
+      "subsector": "Platform Giants",
+      "market_cap_b": 221.7
+    },
+    "PFE": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 149.0
+    },
+    "PH": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 111.1
+    },
+    "PLTR": {
+      "sector": "cyber",
+      "subsector": "Gov / Defense Cyber",
+      "market_cap_b": 309.0
+    },
+    "QCOM": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 204.6
+    },
+    "QLYS": {
+      "sector": "cyber",
+      "subsector": "Cloud & Network Security",
+      "market_cap_b": 3.9
+    },
+    "RDW": {
+      "sector": "defense",
+      "subsector": "Space",
+      "market_cap_b": 3.2
+    },
+    "RDWR": {
+      "sector": "cyber",
+      "subsector": "Threat Intel / IR",
+      "market_cap_b": 1.2
+    },
+    "RTX": {
+      "sector": "defense",
+      "subsector": "Prime Defense",
+      "market_cap_b": 244.6
+    },
+    "S": {
+      "sector": "cyber",
+      "subsector": "AI-Powered / Next-Gen",
+      "market_cap_b": 5.0
+    },
+    "SAIC": {
+      "sector": "cyber",
+      "subsector": "Gov / Defense Cyber",
+      "market_cap_b": 4.9
+    },
+    "SAIL": {
+      "sector": "cyber",
+      "subsector": "Identity & Access",
+      "market_cap_b": 8.2
+    },
+    "STX": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 187.6
+    },
+    "TENB": {
+      "sector": "cyber",
+      "subsector": "Cloud & Network Security",
+      "market_cap_b": 2.9
+    },
+    "TMO": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 173.7
+    },
+    "TMUS": {
+      "sector": "broad",
+      "subsector": "Communication",
+      "market_cap_b": 202.8
+    },
+    "TXN": {
+      "sector": "broad",
+      "subsector": "Technology",
+      "market_cap_b": 262.8
+    },
+    "UNH": {
+      "sector": "broad",
+      "subsector": "Health Care",
+      "market_cap_b": 368.4
+    },
+    "UNP": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 157.3
+    },
+    "UPS": {
+      "sector": "broad",
+      "subsector": "Industrials",
+      "market_cap_b": 90.1
+    },
+    "V": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 606.1
+    },
+    "VRNS": {
+      "sector": "cyber",
+      "subsector": "Data Security",
+      "market_cap_b": 3.8
+    },
+    "VST": {
+      "sector": "energy",
+      "subsector": "Nuclear Power",
+      "market_cap_b": 48.6
+    },
+    "VZ": {
+      "sector": "broad",
+      "subsector": "Communication",
+      "market_cap_b": 198.9
+    },
+    "WFC": {
+      "sector": "broad",
+      "subsector": "Financials",
+      "market_cap_b": 250.6
+    },
+    "ZS": {
+      "sector": "cyber",
+      "subsector": "Platform Giants",
+      "market_cap_b": 20.2
+    }
+  },
+  "excluded_counts": {
+    "sub_1b_cap": 6,
+    "iv_suspect_small": 0,
+    "broad_subsector_cut": 200,
+    "broad_over_quota": 171
+  },
+  "excluded": {
+    "sub_1b_cap": [
+      "HACK",
+      "OSPN",
+      "RBBN",
+      "RPD",
+      "TLS",
+      "YORW"
+    ],
+    "iv_suspect_small": [],
+    "broad_subsector_cut": [
+      "AAP",
+      "ABNB",
+      "ADC",
+      "ADM",
+      "AEE",
+      "AEP",
+      "ALB",
+      "AMZN",
+      "AN",
+      "APA",
+      "APD",
+      "AR",
+      "ATI",
+      "AVA",
+      "AVB",
+      "AVY",
+      "AWK",
+      "AZO",
+      "BALL",
+      "BBY",
+      "BF-B",
+      "BG",
+      "BKNG",
+      "BKR",
+      "BXP",
+      "CAG",
+      "CCI",
+      "CCK",
+      "CCL",
+      "CE",
+      "CENX",
+      "CF",
+      "CHD",
+      "CLX",
+      "CMC",
+      "CMG",
+      "CMS",
+      "CNX",
+      "COLD",
+      "COP",
+      "COST",
+      "CPB",
+      "CPRI",
+      "CSTM",
+      "CTRE",
+      "CVNA",
+      "CVX",
+      "CWT",
+      "CZR",
+      "D",
+      "DHI",
+      "DKNG",
+      "DOC",
+      "DOW",
+      "DRI",
+      "DUK",
+      "DVN",
+      "ECL",
+      "EGP",
+      "EIX",
+      "EL",
+      "EMN",
+      "EOG",
+      "EPD",
+      "EPRT",
+      "EQR",
+      "EQT",
+      "ES",
+      "ET",
+      "ETSY",
+      "EVRG",
+      "EXR",
+      "F",
+      "FANG",
+      "FCX",
+      "FE",
+      "FMC",
+      "FRT",
+      "GEF",
+      "GIS",
+      "GLPI",
+      "GM",
+      "GPC",
+      "GTY",
+      "HAL",
+      "HAS",
+      "HD",
+      "HLT",
+      "HR",
+      "HRL",
+      "HSY",
+      "HWM",
+      "IFF",
+      "INGR",
+      "IP",
+      "IRM",
+      "KALU",
+      "KDP",
+      "KIM",
+      "KMB",
+      "KMI",
+      "KMX",
+      "KO",
+      "LEN",
+      "LIN",
+      "LNT",
+      "LOW",
+      "LTC",
+      "LVS",
+      "LYB",
+      "LYFT",
+      "MAR",
+      "MAT",
+      "MCD",
+      "MDLZ",
+      "MGM",
+      "MGY",
+      "MKC",
+      "MNST",
+      "MO",
+      "MOS",
+      "MPC",
+      "MTDR",
+      "MTH",
+      "NCLH",
+      "NEM",
+      "NHI",
+      "NI",
+      "NKE",
+      "NNN",
+      "NUE",
+      "NVR",
+      "NWE",
+      "O",
+      "OGE",
+      "OHI",
+      "OKE",
+      "ORLY",
+      "OXY",
+      "PCG",
+      "PEP",
+      "PFGC",
+      "PG",
+      "PHM",
+      "PKG",
+      "PLD",
+      "PM",
+      "PNW",
+      "POR",
+      "PPG",
+      "PPL",
+      "PR",
+      "PSA",
+      "PSX",
+      "RCL",
+      "REG",
+      "REXR",
+      "RL",
+      "RRC",
+      "RS",
+      "SAM",
+      "SBRA",
+      "SBUX",
+      "SHW",
+      "SJM",
+      "SLB",
+      "SLG",
+      "SM",
+      "SMPL",
+      "SO",
+      "SON",
+      "SPG",
+      "SR",
+      "STAG",
+      "STLD",
+      "STZ",
+      "SYY",
+      "TAP",
+      "TJX",
+      "TOL",
+      "TPR",
+      "TR",
+      "TRGP",
+      "TRNO",
+      "TSLA",
+      "UBER",
+      "USFD",
+      "VICI",
+      "VLO",
+      "VTR",
+      "W",
+      "WELL",
+      "WMB",
+      "WMT",
+      "WPC",
+      "WTRG",
+      "WYNN",
+      "XEL",
+      "XOM",
+      "YUM"
+    ],
+    "broad_over_quota": [
+      "A",
+      "AAL",
+      "ACN",
+      "AFL",
+      "AFRM",
+      "AIG",
+      "ALGN",
+      "ALK",
+      "ALL",
+      "ALLY",
+      "AME",
+      "AON",
+      "AXON",
+      "BAX",
+      "BDX",
+      "BIIB",
+      "BK",
+      "BLK",
+      "BMY",
+      "BSX",
+      "CARR",
+      "CB",
+      "CBOE",
+      "CDNS",
+      "CDW",
+      "CFG",
+      "CHRW",
+      "CHTR",
+      "CI",
+      "CINF",
+      "CMCSA",
+      "CME",
+      "CNC",
+      "CNI",
+      "COF",
+      "COHR",
+      "COO",
+      "CP",
+      "CSX",
+      "CTAS",
+      "CTSH",
+      "CVS",
+      "DAL",
+      "DGX",
+      "DHR",
+      "DIS",
+      "DVA",
+      "DXCM",
+      "EA",
+      "EMR",
+      "ENPH",
+      "EPAM",
+      "EW",
+      "EXPD",
+      "FAST",
+      "FDX",
+      "FIS",
+      "FITB",
+      "FLEX",
+      "FOX",
+      "FOXA",
+      "GDDY",
+      "GL",
+      "GLW",
+      "GNRC",
+      "GPN",
+      "GWW",
+      "HBAN",
+      "HCA",
+      "HIG",
+      "HII",
+      "HOOD",
+      "HPE",
+      "HPQ",
+      "HSIC",
+      "HUM",
+      "ICE",
+      "IDXX",
+      "ILMN",
+      "INCY",
+      "IQV",
+      "ISRG",
+      "IT",
+      "JBLU",
+      "JCI",
+      "KEY",
+      "KEYS",
+      "L",
+      "LH",
+      "LNC",
+      "LUMN",
+      "LUV",
+      "LYV",
+      "MCHP",
+      "MCK",
+      "MCO",
+      "MDT",
+      "MET",
+      "MHK",
+      "MMM",
+      "MOH",
+      "MPWR",
+      "MRNA",
+      "MSA",
+      "MTB",
+      "MTCH",
+      "NDAQ",
+      "NSC",
+      "NTAP",
+      "NTRS",
+      "NXPI",
+      "OGN",
+      "OMC",
+      "ON",
+      "OTIS",
+      "PAYC",
+      "PCTY",
+      "PNC",
+      "PODD",
+      "PRU",
+      "PTC",
+      "PYPL",
+      "QRVO",
+      "REGN",
+      "RF",
+      "RGEN",
+      "RLI",
+      "RMD",
+      "ROK",
+      "ROP",
+      "RSG",
+      "SCHW",
+      "SIRI",
+      "SNA",
+      "SNPS",
+      "SOFI",
+      "SPGI",
+      "STT",
+      "SWK",
+      "SWKS",
+      "SYF",
+      "SYK",
+      "T",
+      "TDG",
+      "TDY",
+      "TECH",
+      "TER",
+      "TFC",
+      "TFX",
+      "TRMB",
+      "TRN",
+      "TTWO",
+      "TXT",
+      "UAL",
+      "UNM",
+      "USB",
+      "VRSK",
+      "VRTX",
+      "VTRS",
+      "WAB",
+      "WAL",
+      "WAT",
+      "WBD",
+      "WDC",
+      "WM",
+      "WRB",
+      "XRAY",
+      "XYL",
+      "ZBH",
+      "ZBRA",
+      "ZTS"
+    ]
+  }
+}

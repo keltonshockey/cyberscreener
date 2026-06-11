@@ -83,5 +83,8 @@ export const removeWatchlistTicker = (ticker) => api(`/watchlist/${ticker}`, { m
 export const analyzePlaysTicker = (ticker) => api(`/plays/${ticker}/analyze`, { method: 'POST' });
 export const fetchAIStatus = () => api('/ai/status');
 
+// ── UI config (runtime feature flags, e.g. the world pause) ──
+export const fetchUiConfig = () => api('/config/ui');
+
 // ── Admin ──
 export const promoteUser = (userId) => api(`/admin/promote/${userId}`, { method: 'POST' });

@@ -20,8 +20,22 @@ import { TickerPage } from './pages/TickerPage';
 
 // Lazy-load World page (includes Phaser ~1MB) — only downloaded when user visits /world
 const WorldPage = lazy(() => import('./pages/WorldPage').then(m => ({ default: m.WorldPage })));
-import { fetchStats, fetchLatestScores, fetchBacktest, triggerScan, fetchScanStatus } from './api/endpoints';
+import { fetchStats, fetchLatestScores, fetchBacktest, triggerScan, fetchScanStatus, fetchUiConfig } from './api/endpoints';
 import { getStoredTz } from './utils/formatters';
+
+// World PAUSE notice (SESSION-SLIM-SCOPE): shown on a direct /world visit
+// while the world is paused. Source stays in the repo; flip WORLD_ENABLED=1
+// on the server to revive — no rebuild.
+function WorldPaused() {
+  return (
+    <div style={{ textAlign: 'center', padding: 80, color: 'var(--color-text-secondary)' }}>
+      <div style={{ fontSize: 15, letterSpacing: '0.12em', marginBottom: 10 }}>WORLD VIEW IS PAUSED</div>
+      <div style={{ fontSize: 13 }}>
+        The 3D city is on hold while the scoring core gets rebuilt. It will return.
+      </div>
+    </div>
+  );
+}
 
 export function App() {
   const { user, profile } = useAuth();
@@ -37,7 +51,13 @@ export function App() {
   const [latest, setLatest] = useState(null);
   const [backtest, setBacktest] = useState(null);
   const [scanRunning, setScanRunning] = useState(false);
+  // World pause flag — paused by default until /config/ui says otherwise.
+  const [worldEnabled, setWorldEnabled] = useState(false);
   const tz = getStoredTz();
+
+  useEffect(() => {
+    fetchUiConfig().then(c => setWorldEnabled(!!c?.world_enabled)).catch(() => {});
+  }, []);
 
   // ── Load core data (non-blocking — scores first, stats deferred) ──
   const loadScores = useCallback(async () => {
@@ -139,7 +159,7 @@ export function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Header onAuthClick={handleAuthClick} latest={latest} />
-      <NavBar onRunScan={handleRunScan} scanRunning={scanRunning} />
+      <NavBar onRunScan={handleRunScan} scanRunning={scanRunning} worldEnabled={worldEnabled} />
 
       <main style={{ flex: 1, padding: '20px 24px', maxWidth: 1400, width: '100%', margin: '0 auto' }}>
         <Routes>
@@ -166,9 +186,13 @@ export function App() {
           <Route
             path="/world"
             element={
-              <Suspense fallback={<div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-secondary)' }}>Loading world...</div>}>
-                <WorldPage />
-              </Suspense>
+              worldEnabled ? (
+                <Suspense fallback={<div style={{ textAlign: 'center', padding: 60, color: 'var(--color-text-secondary)' }}>Loading world...</div>}>
+                  <WorldPage />
+                </Suspense>
+              ) : (
+                <WorldPaused />
+              )
             }
           />
         </Routes>
