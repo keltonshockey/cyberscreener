@@ -1,0 +1,16 @@
+{
+  "db_path": "/app/data/cyberscreener.db",
+  "scores_full_days": 30,
+  "scores_daily_days": 365,
+  "signals_days": 30,
+  "size_threshold_mb": 1700,
+  "backup_dir": "/app/data",
+  "backup_keep": 2,
+  "log_file": "/var/log/cyberscreener-prune.log",
+  "scanner_log": "/opt/cyberscreener/api/scanner.log",
+  "idle_window_utc": ["23:00", "05:30"],
+  "services": ["cyberscreener.service", "cyberscreener-scheduler.service"],
+  "manage_services": true,
+  "notify": true,
+  "api_dir": "/opt/cyberscreener/api"
+}

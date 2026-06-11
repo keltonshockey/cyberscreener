@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily CyberScreener DB prune check (04:10 UTC, after the 03:30 nightly backup)
+
+[Timer]
+OnCalendar=*-*-* 04:10:00 UTC
+Persistent=false
+# Persistent=false on purpose: a missed run must NOT fire later in the day
+# (it could land mid-scan; the script would refuse, but don't even try).
+
+[Install]
+WantedBy=timers.target

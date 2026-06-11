@@ -1089,15 +1089,38 @@ def scan_status():
 
 # ─── Self-Calibration ───
 
-@app.post("/calibrate")
+@app.post("/calibrate", status_code=202)
 def trigger_calibration(
     days: int = Query(180, ge=30, le=365),
     forward_period: int = Query(30, ge=7, le=90),
     dry_run: bool = Query(False),
     admin: dict = Depends(require_admin),
 ):
-    """Auto-adjust scoring weights based on backtest data. Admin only."""
-    return calibrate_weights(days, forward_period, dry_run=dry_run)
+    """Enqueue a calibration run. Admin only.
+
+    Calibration is an offline background job (jobs/calibrate_job.py), never run
+    inside the request: synchronous calibration exceeded nginx's 60s
+    proxy_read_timeout and 502'd every time (2026-06-05). This handler only writes
+    a trigger file and returns 202 immediately; an off-box worker / scheduler picks
+    it up and runs `python -m jobs.calibrate_job`.
+    """
+    job_id = "cal_" + datetime.utcnow().strftime("%Y%m%dT%H%M%S%f")
+    trigger = {
+        "job_id": job_id,
+        "requested_at": datetime.utcnow().isoformat() + "Z",
+        "days": days,
+        "forward_period": forward_period,
+        "dry_run": dry_run,
+    }
+    trigger_dir = os.path.expanduser("~/grist/triggers")
+    os.makedirs(trigger_dir, exist_ok=True)
+    with open(os.path.join(trigger_dir, "calibrate"), "w") as f:
+        json.dump(trigger, f)
+    return {
+        "status": "queued",
+        "job_id": job_id,
+        "message": "Calibration enqueued; runs as an offline job. Check /weights for results.",
+    }
 
 @app.get("/weights")
 def get_current_weights():

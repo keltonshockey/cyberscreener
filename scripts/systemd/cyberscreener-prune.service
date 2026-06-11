@@ -1,0 +1,14 @@
+[Unit]
+Description=CyberScreener DB prune (threshold-triggered, idle-window only)
+# The script itself enforces every guard: size threshold, idle window,
+# no-scan-in-flight, disk space, pre-prune backup, protected-row assertions.
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/cyberscreener/scripts/db_prune.py --auto --commit --config /opt/cyberscreener/scripts/db_prune_config.json
+# Prune + VACUUM INTO on a ~2 GB DB can take several minutes on the droplet
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
