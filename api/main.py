@@ -614,6 +614,19 @@ async def get_personalized_scores(
     }
 
 
+@app.get("/config/ui")
+def ui_config():
+    """Runtime UI feature flags (SESSION-SLIM-SCOPE).
+
+    world_enabled: the 3D voxel world is PAUSED by default (Kelton's call
+    2026-06-11 — pause, not cut). Flip WORLD_ENABLED=1 in the service env and
+    restart to revive it; no rebuild needed. While paused the nav tab is
+    hidden, /world shows a paused notice, and the world JS chunk (already
+    code-split) is never fetched."""
+    import os
+    return {"world_enabled": os.environ.get("WORLD_ENABLED", "0") == "1"}
+
+
 @app.get("/health")
 def health():
     import os, subprocess
