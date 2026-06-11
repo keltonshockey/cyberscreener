@@ -191,3 +191,62 @@ def test_score_options_direction_matches_helper():
         rsi=82, price_above_sma20=False, price_above_sma50=False, perf_3m=-15,
         weekly_above_sma20=None, vol_ratio=row["vol_ratio"], whale_bias="neutral")
     assert _score_direction(row) == helper_dir == "bearish"
+
+
+# ── 6. exhaustive mirror symmetry (SESSION-TEST-HARNESS) ───────────────────────
+# Deepens the single mirror case above: the symmetric property must hold for
+# every RSI band pair, each SMA term in isolation, and the full input grid —
+# not just one hand-picked setup. Any future edit that re-introduces an
+# asymmetric term fails here immediately.
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("rsi_bull, rsi_bear", [
+    (20, 85),   # extreme band: <22 vs >78
+    (25, 75),   # strong band: <28 vs >72
+    (32, 68),   # mild band:   <35 vs >65
+])
+def test_rsi_bands_are_mirrored_in_magnitude(rsi_bull, rsi_bear):
+    """Each oversold band must carry exactly the weight of its overbought twin."""
+    _, bull, _, _ = compute_directional_bias(rsi=rsi_bull)
+    _, _, bear, _ = compute_directional_bias(rsi=rsi_bear)
+    assert bull == bear and bull > 0
+
+
+@_pytest.mark.parametrize("kwargs_bull, kwargs_bear", [
+    (dict(price_above_sma20=True), dict(price_above_sma20=False)),
+    (dict(price_above_sma50=True), dict(price_above_sma50=False)),
+    (dict(weekly_above_sma20=True), dict(weekly_above_sma20=False)),
+    (dict(perf_3m=15), dict(perf_3m=-15)),
+])
+def test_each_term_contributes_equal_weight_both_ways(kwargs_bull, kwargs_bear):
+    """Above-SMA and below-SMA (and +/- momentum) must contribute the SAME
+    magnitude to their respective sides — the structural ~69% long bias was
+    exactly this property being violated."""
+    _, bull, bear_side, _ = compute_directional_bias(rsi=50, **kwargs_bull)
+    _, bull_side, bear, _ = compute_directional_bias(rsi=50, **kwargs_bear)
+    assert bull == bear and bull == 1
+    assert bear_side == 0 and bull_side == 0
+
+
+def test_full_grid_mirror_property():
+    """For every input combo, mirroring all inputs swaps (bull, bear) exactly
+    and flips the label (neutral stays neutral)."""
+    flip = {"bullish": "bearish", "bearish": "bullish", "neutral": "neutral"}
+    rsi_mirror = {20: 80, 30: 70, 40: 60, 50: 50, 60: 40, 70: 30, 80: 20}
+    for rsi in (20, 30, 40, 50, 60, 70, 80):
+        for a20 in (True, False, None):
+            for a50 in (True, False, None):
+                for perf in (-15, 0, 15):
+                    d1, b1, be1, _ = compute_directional_bias(
+                        rsi=rsi, price_above_sma20=a20,
+                        price_above_sma50=a50, perf_3m=perf)
+                    mirror_a20 = None if a20 is None else (not a20)
+                    mirror_a50 = None if a50 is None else (not a50)
+                    d2, b2, be2, _ = compute_directional_bias(
+                        rsi=rsi_mirror[rsi], price_above_sma20=mirror_a20,
+                        price_above_sma50=mirror_a50, perf_3m=-perf)
+                    assert (b1, be1) == (be2, b2), (
+                        f"mirror broke at rsi={rsi} a20={a20} a50={a50} perf={perf}")
+                    assert d2 == flip[d1]

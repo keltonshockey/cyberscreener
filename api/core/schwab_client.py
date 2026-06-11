@@ -8,6 +8,13 @@ Format: {"access_token": "...", "refresh_token": "...", "expires_in": 1800,
 
 Falls back cleanly (returns None) on any error — scanner never crashes.
 """
+# Deferred annotation evaluation is REQUIRED here: chain_to_dataframes' return
+# annotation references pd, but pandas is imported lazily inside the function.
+# Without this, the module raises NameError at import on Python <=3.13 (prod is
+# 3.11) — scanner.py swallows that as "Schwab pre-fetch failed (non-fatal)" and
+# silently falls back to yfinance for every ticker. Python 3.14 (mill) defers
+# annotations by default, which is why test runs there never caught it.
+from __future__ import annotations
 
 import asyncio
 import json

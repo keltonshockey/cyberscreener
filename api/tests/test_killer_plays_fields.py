@@ -58,16 +58,21 @@ JOURNAL_CONTRACT = ("strategy", "strike", "expiry", "estimated_premium",
                     "premium", "max_loss", "risk_reward")
 
 
-def _seed_scores(conn, ticker, *, lt=80.0, opt=80.0, rsi=72.0, iv=40.0,
+def _seed_scores(conn, ticker, *, lt=80.0, opt=80.0, rsi=80.0, iv=40.0,
                  mcap=100.0, rc=60, scan_id=1):
     """A ranked ticker that clears every /killer-plays filter: combined>=65,
-    threat ok, no outage/breach, RSI>65 (non-neutral + overbought catalyst),
-    IV not suspect."""
+    threat ok, no outage/breach, decisively bearish direction, IV not suspect.
+
+    Post-PR#6 a lone mildly-elevated RSI (the old rsi=72 seed) is correctly
+    NEUTRAL under MIN_DIR_MARGIN and killer-plays drops neutral tickers — so
+    the seed must be directionally decisive: RSI 80 (+3 bear) + price below
+    both SMAs (+2 bear) = bearish, matching the seeded bearish play."""
     conn.execute(
         "INSERT INTO scores (scan_id, ticker, price, lt_score, opt_score, rsi, "
-        "iv_30d, market_cap_b, rc_score, threat_score, outage_status, breach_victim) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 100, 'none', 0)",
-        (scan_id, ticker, 200.0, lt, opt, rsi, iv, mcap, rc),
+        "iv_30d, market_cap_b, rc_score, threat_score, outage_status, breach_victim, "
+        "sma_20, sma_50) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 100, 'none', 0, ?, ?)",
+        (scan_id, ticker, 200.0, lt, opt, rsi, iv, mcap, rc, 210.0, 220.0),
     )
 
 
