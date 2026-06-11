@@ -339,3 +339,67 @@ def test_gate_metrics_unresolvable_counted_not_silently_dropped(conn):
     m = gate_metrics(conn)
     assert m["overall"]["n_unresolvable"] == 1
     assert m["overall"]["n_decided"] == 0 and m["overall"]["win_rate"] is None
+
+
+# ── SESSION-TEST-HARNESS additions ─────────────────────────────────────────────
+# Long puts had no coverage (every other strategy did), and no single test swept
+# the win/loss SIGN across all strategies — the exact failure mode of the legacy
+# closure (directional x4 math booking condor wins as losses, PR #12).
+
+def test_long_put_itm_win():
+    o = compute_outcome({"strategy": "Long Put", "strike": 100.0, "entry_price": 5.0},
+                        88.0, "2026-06-01")
+    assert (o.status, o.outcome, o.win) == ("closed", "win", 1)
+    assert o.realized_pnl == pytest.approx(7.0)       # max(100-88,0) - 5
+    assert o.realized_return == pytest.approx(1.4)    # 7/5
+
+
+def test_long_put_otm_total_loss():
+    o = compute_outcome({"strategy": "Long Put", "strike": 100.0, "entry_price": 5.0},
+                        105.0, "2026-06-01")
+    assert (o.outcome, o.win, o.realized_return) == ("loss", 0, -1.0)
+
+
+def test_long_put_partial_loss():
+    # ITM but intrinsic < premium: value 3, debit 5 -> loss of 2 (-40%)
+    o = compute_outcome({"strategy": "Long Put", "strike": 100.0, "entry_price": 5.0},
+                        97.0, "2026-06-01")
+    assert o.outcome == "loss"
+    assert o.realized_pnl == pytest.approx(-2.0)
+    assert o.realized_return == pytest.approx(-0.4)
+
+
+# Sign sweep: (play, winning settlement, losing settlement) per strategy.
+# A favorable move must NEVER book as a loss, nor an adverse move as a win —
+# the sign-flip class that corrupted the 11 AAPL condors must be impossible
+# for every strategy the generator can emit.
+_SIGN_CASES = [
+    ("Long Call",
+     {"strategy": "Long Call", "strike": 100.0, "entry_price": 4.0}, 120.0, 90.0),
+    ("Long Put",
+     {"strategy": "Long Put", "strike": 100.0, "entry_price": 4.0}, 80.0, 110.0),
+    ("Bull Call Spread",
+     {"strategy": "Bull Call Spread", "strike": "100/110", "entry_price": 3.0},
+     115.0, 95.0),
+    ("Bear Put Spread",
+     {"strategy": "Bear Put Spread", "strike": "110/100", "entry_price": 3.0},
+     95.0, 115.0),
+    ("Straddle",
+     {"strategy": "Straddle", "strike": 100.0, "entry_price": 5.0}, 120.0, 101.0),
+    ("Iron Condor",
+     {"strategy": "Iron Condor", "strike": "85/90/110/115", "entry_price": 1.5},
+     100.0, 120.0),
+]
+
+
+@pytest.mark.parametrize("name, play, win_px, loss_px", _SIGN_CASES,
+                         ids=[c[0] for c in _SIGN_CASES])
+def test_outcome_sign_matches_thesis(name, play, win_px, loss_px):
+    won = compute_outcome(dict(play), win_px, "2026-06-01")
+    lost = compute_outcome(dict(play), loss_px, "2026-06-01")
+    assert (won.status, won.outcome, won.win) == ("closed", "win", 1), (
+        f"{name}: favorable settlement {win_px} booked as {won.outcome}")
+    assert won.realized_return > 0
+    assert (lost.status, lost.outcome, lost.win) == ("closed", "loss", 0), (
+        f"{name}: adverse settlement {loss_px} booked as {lost.outcome}")
+    assert lost.realized_return < 0
