@@ -28,6 +28,10 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Baseline-vs-layers scoring regime (SESSION-BASELINE-WEIGHTS) — the live
+# lt/opt scores fund only evidence-backed components; see PROMOTION_CRITERIA.md.
+from core import baseline as _baseline
+
 
 def _safe_num(v, default=0):
     """Convert a value to a number, replacing NaN/None/inf with default."""
@@ -163,7 +167,20 @@ _active_lt_weights = dict(DEFAULT_LT_WEIGHTS)
 _active_opt_weights = dict(DEFAULT_OPT_WEIGHTS)
 
 def set_weights(lt_weights=None, opt_weights=None):
-    """Override scoring weights (called by self-calibration engine)."""
+    """Override scoring weights (called by self-calibration engine).
+
+    FROZEN in baseline mode (SESSION-BASELINE-WEIGHTS): the baseline weights
+    live in core/weights_baseline.json and change only per
+    PROMOTION_CRITERIA.md, and the reference composite must stay at the
+    default weights so persisted component history remains comparable.
+    Calibration output is still recorded to score_weights for the record —
+    it just cannot steer live scoring outside legacy mode."""
+    if _baseline.baseline_active():
+        logger.warning(
+            "set_weights ignored: baseline mode is active (weights are config-"
+            "frozen per PROMOTION_CRITERIA.md; set CYBERSCREENER_LEGACY_SCORES=1 "
+            "for legacy-composite behavior)")
+        return
     global _active_lt_weights, _active_opt_weights
     if lt_weights:
         _active_lt_weights = lt_weights
@@ -2005,8 +2022,26 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
 
         data = fetch_ticker_data(ticker)
         if data:
+            # Reference composite ALWAYS runs (legacy default weights): every
+            # component keeps being computed and persisted — the per-component
+            # point columns and breakdown raws are the forward history that
+            # future layer-promotion decisions need (PROMOTION_CRITERIA.md).
             lt_score, lt_reasons, lt_breakdown = score_long_term(data)
             opt_score, opt_reasons, opt_breakdown = score_options(data)
+
+            if _baseline.baseline_active():
+                # BASELINE scoring (SESSION-BASELINE-WEIGHTS): the live score
+                # funds only evidence-backed components (LT=Valuation,
+                # Opt=Asymmetry), derived from the breakdown raws. The legacy
+                # composite stays visible inside the breakdown JSON for
+                # comparison; CYBERSCREENER_LEGACY_SCORES=1 restores it live.
+                meta = {"score_version": _baseline.score_version(),
+                        "legacy_lt_score": lt_score,
+                        "legacy_opt_score": opt_score}
+                lt_score = _baseline.compute_baseline_lt(lt_breakdown)
+                opt_score = _baseline.compute_baseline_opt(opt_breakdown)
+                lt_breakdown["_meta"] = dict(meta)
+                opt_breakdown["_meta"] = dict(meta)
 
             data["lt_score"] = lt_score
             data["lt_reasons"] = lt_reasons
@@ -2015,11 +2050,13 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
             data["opt_reasons"] = opt_reasons
             data["opt_breakdown"] = opt_breakdown
 
-            # Store component scores at top level for DB
+            # Store component scores at top level for DB (skip meta entries)
             for key, val in lt_breakdown.items():
-                data[f"lt_{key}"] = val.get("points", 0)
+                if not key.startswith("_"):
+                    data[f"lt_{key}"] = val.get("points", 0)
             for key, val in opt_breakdown.items():
-                data[f"opt_{key}"] = val.get("points", 0)
+                if not key.startswith("_"):
+                    data[f"opt_{key}"] = val.get("points", 0)
 
             # ── Intel Layer: SEC / Insider ──
             ticker_obj = data.pop("_ticker_obj", None)
@@ -2097,11 +2134,15 @@ def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None
                 try:
                     sector_for_threat = data.get("sector", "cyber")
                     threat = _score_threat(ticker, sector_for_threat)
-                    # Apply modifiers to live scores
-                    new_opt = min(100, max(0, data["opt_score"] + threat["opt_modifier"]))
-                    new_lt  = min(100, max(0, data["lt_score"]  + threat["lt_modifier"]))
-                    data["opt_score"] = new_opt
-                    data["lt_score"]  = new_lt
+                    # Threat modifiers are a LAYER, not baseline evidence: in
+                    # baseline mode they are recorded (threat_* columns +
+                    # signals below) but never move the score. Legacy mode
+                    # keeps the old additive mutation.
+                    if not _baseline.baseline_active():
+                        new_opt = min(100, max(0, data["opt_score"] + threat["opt_modifier"]))
+                        new_lt  = min(100, max(0, data["lt_score"]  + threat["lt_modifier"]))
+                        data["opt_score"] = new_opt
+                        data["lt_score"]  = new_lt
                     # Append threat signals to opt_reasons
                     if threat["signals"]:
                         data["opt_reasons"] = data.get("opt_reasons", []) + threat["signals"]

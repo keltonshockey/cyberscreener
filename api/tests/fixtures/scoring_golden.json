@@ -1,5 +1,7 @@
 {
   "boundary_values": {
+    "baseline_lt_score": 75.0,
+    "baseline_opt_score": 15.0,
     "direction": "neutral",
     "direction_signals": {
       "bear": 2,
@@ -28,6 +30,8 @@
     "rc_score": 75
   },
   "cash_burn_smallcap": {
+    "baseline_lt_score": 10.0,
+    "baseline_opt_score": 20.0,
     "direction": "bearish",
     "direction_signals": {
       "bear": 3,
@@ -56,6 +60,8 @@
     "rc_score": 31
   },
   "deep_value_rebound": {
+    "baseline_lt_score": 100.0,
+    "baseline_opt_score": 70.0,
     "direction": "bearish",
     "direction_signals": {
       "bear": 4,
@@ -84,6 +90,8 @@
     "rc_score": 70
   },
   "elite_saas": {
+    "baseline_lt_score": 100.0,
+    "baseline_opt_score": 0.0,
     "direction": "bullish",
     "direction_signals": {
       "bear": 0,
@@ -112,6 +120,8 @@
     "rc_score": 65
   },
   "expensive_decliner": {
+    "baseline_lt_score": 0.0,
+    "baseline_opt_score": 0.0,
     "direction": "bearish",
     "direction_signals": {
       "bear": 2,
@@ -140,6 +150,8 @@
     "rc_score": 43
   },
   "neutral_sparse": {
+    "baseline_lt_score": 0.0,
+    "baseline_opt_score": 0.0,
     "direction": "neutral",
     "direction_signals": {
       "bear": 0,
@@ -168,6 +180,8 @@
     "rc_score": 20
   },
   "overbought_momentum": {
+    "baseline_lt_score": 75.0,
+    "baseline_opt_score": 20.0,
     "direction": "neutral",
     "direction_signals": {
       "bear": 3,
@@ -196,6 +210,8 @@
     "rc_score": 90
   },
   "oversold_capitulation": {
+    "baseline_lt_score": 75.0,
+    "baseline_opt_score": 30.0,
     "direction": "neutral",
     "direction_signals": {
       "bear": 3,
@@ -224,6 +240,8 @@
     "rc_score": 60
   },
   "premium_seller_high_ivr": {
+    "baseline_lt_score": 75.0,
+    "baseline_opt_score": 40.0,
     "direction": "neutral",
     "direction_signals": {
       "bear": 1,
@@ -252,6 +270,8 @@
     "rc_score": 85
   },
   "whale_aligned_bull": {
+    "baseline_lt_score": 75.0,
+    "baseline_opt_score": 100.0,
     "direction": "bullish",
     "direction_signals": {
       "bear": 0,

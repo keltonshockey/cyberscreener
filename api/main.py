@@ -162,8 +162,14 @@ try:
 except Exception as _me:
     print(f"Presence migration warning: {_me}")
 
-# Load saved weights if available
+# Load saved (calibrated) weights if available — LEGACY MODE ONLY. In baseline
+# mode the weights are config-frozen (core/weights_baseline.json, changed only
+# per PROMOTION_CRITERIA.md) and stale DB calibration rows must not steer live
+# scoring; set_weights also self-guards, this just skips the dead work.
 def _load_saved_weights():
+    from core.baseline import baseline_active
+    if baseline_active():
+        return
     for score_type in ["lt", "opt"]:
         saved = get_latest_weights(score_type)
         if saved:

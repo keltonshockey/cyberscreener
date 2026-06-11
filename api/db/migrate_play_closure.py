@@ -4,6 +4,11 @@ Migration: settlement_v2 closure columns on options_plays.
 Adds the pre-registered outcome fields (api/core/FORWARD_TEST_SEMANTICS.md):
 closed_at, settlement_price/date, realized_pnl, realized_return, outcome,
 win, close_method, entry_conviction. Idempotent — safe to re-run.
+
+Also adds score_version (SESSION-BASELINE-WEIGHTS): the scoring-regime cohort
+tag stamped on each journal row at log time (e.g. 'v2-baseline'). Gate reads
+are per-cohort; legacy rows stay NULL and report separately — historical
+conviction values are never rewritten.
 """
 import sqlite3
 import os
@@ -20,6 +25,7 @@ COLUMNS = [
     ("win", "INTEGER"),
     ("close_method", "TEXT"),
     ("entry_conviction", "REAL"),
+    ("score_version", "TEXT"),
 ]
 
 
