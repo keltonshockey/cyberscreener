@@ -33,7 +33,24 @@ _CACHE_TTL = 240  # seconds
 # Module-level cache: {symbol: (fetched_at, data)}
 _chain_cache: dict[str, tuple[float, Optional[dict]]] = {}
 _quote_cache: dict[str, tuple[float, Optional[dict]]] = {}
-_sem = asyncio.Semaphore(5)  # max 5 concurrent Schwab calls
+
+# Concurrency limiter (max 5 concurrent Schwab calls). It must NOT be created at
+# import time: scanner.py drives enrichment via a fresh asyncio.run() each scan,
+# so a module-level Semaphore binds to the first run's loop and every later scan
+# raises "bound to a different event loop". Create it lazily inside the running
+# loop and rebind whenever the loop changes.
+_SEM_LIMIT = 5
+_sem: Optional[asyncio.Semaphore] = None
+_sem_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def _get_sem() -> asyncio.Semaphore:
+    global _sem, _sem_loop
+    loop = asyncio.get_running_loop()
+    if _sem is None or _sem_loop is not loop:
+        _sem = asyncio.Semaphore(_SEM_LIMIT)
+        _sem_loop = loop
+    return _sem
 
 def load_token() -> Optional[str]:
     try:
@@ -53,7 +70,7 @@ def load_token() -> Optional[str]:
 async def get_option_chain(symbol: str, access_token: str, strike_count: int = 10) -> Optional[dict]:
     if symbol in _chain_cache and time.time() - _chain_cache[symbol][0] < _CACHE_TTL:
         return _chain_cache[symbol][1]
-    async with _sem:
+    async with _get_sem():
         try:
             url = f"{SCHWAB_BASE}/chains"
             params = {
@@ -78,7 +95,7 @@ async def get_option_chain(symbol: str, access_token: str, strike_count: int = 1
 async def get_quote(symbol: str, access_token: str) -> Optional[dict]:
     if symbol in _quote_cache and time.time() - _quote_cache[symbol][0] < _CACHE_TTL:
         return _quote_cache[symbol][1]
-    async with _sem:
+    async with _get_sem():
         try:
             url = f"{SCHWAB_BASE}/{symbol}/quotes"
             headers = {"Authorization": f"Bearer {access_token}"}

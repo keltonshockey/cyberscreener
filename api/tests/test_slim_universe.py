@@ -65,7 +65,8 @@ def test_config_is_enabled_and_provenanced():
 def test_active_tickers_uses_slim_list(monkeypatch):
     monkeypatch.setattr(su, "open_play_tickers", lambda: set())
     active = su.get_active_tickers(FULL)
-    assert set(active) == set(CONFIG["tickers"].keys())
+    # slim list plus any manually pinned thesis names (always_include, e.g. RPD)
+    assert set(active) == set(CONFIG["tickers"].keys()) | set(CONFIG.get("always_include", []))
     assert len(active) < len(FULL) / 3
 
 
@@ -98,8 +99,12 @@ def test_corrupt_config_falls_back_to_full(monkeypatch, tmp_path):
 def test_open_play_tickers_unioned_until_closed(monkeypatch):
     """A ticker dropped from the slim list but holding an OPEN journal play
     keeps scanning; once closed it drops out (the core continuity guarantee)."""
-    dropped = "RPD"   # really excluded (sub-$1B on the selection scan)
+    # RBBN is genuinely excluded (sub-$1B on the selection scan) and NOT pinned
+    # (RPD was pinned via always_include 2026-06-12, so it can no longer stand in
+    # for a dropped name here).
+    dropped = "RBBN"
     assert dropped not in CONFIG["tickers"]
+    assert dropped not in CONFIG.get("always_include", [])
 
     monkeypatch.setattr(su, "open_play_tickers", lambda: {dropped})
     assert dropped in su.get_active_tickers(FULL)

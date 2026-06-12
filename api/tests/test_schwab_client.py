@@ -86,3 +86,40 @@ async def test_enrich_tickers_no_token():
     with mock.patch('core.schwab_client.load_token', return_value=None):
         result = await enrich_tickers(["AAPL", "TSLA"])
         assert result == {}
+
+
+def test_get_sem_rebinds_across_sequential_event_loops():
+    """Regression (Defect B, 2026-06-12): scanner.run_scan drives enrichment via a
+    FRESH asyncio.run() every scan. A module-level asyncio.Semaphore binds to the
+    first run's loop, so every later scan raised 'is bound to a different event
+    loop' and enrichment silently fell back to yfinance. _get_sem() must create
+    the semaphore inside the running loop and rebind when the loop changes."""
+    _sc._sem = None
+    _sc._sem_loop = None
+
+    async def _acquire():
+        async with _sc._get_sem():
+            return id(asyncio.get_running_loop())
+
+    loop_a = asyncio.run(_acquire())   # old code: binds module sem to loop A
+    loop_b = asyncio.run(_acquire())   # old code: RuntimeError raised here
+    assert loop_a != loop_b, "expected two genuinely distinct event loops"
+    assert _sc._sem is not None
+
+
+def test_get_option_chain_works_across_sequential_runs():
+    """Same regression through the real acquisition path: two separate
+    asyncio.run() cycles, each entering `async with _get_sem()`."""
+    _sc._sem = None
+    _sc._sem_loop = None
+    _sc._chain_cache.clear()
+    with mock.patch('aiohttp.ClientSession.get') as mock_get:
+        mock_response = mock.Mock()
+        mock_response.status = 200
+        mock_response.json = mock.AsyncMock(return_value={"ok": 1})
+        mock_get.return_value.__aenter__.return_value = mock_response
+
+        r1 = asyncio.run(get_option_chain("REGRA", "tok"))
+        r2 = asyncio.run(get_option_chain("REGRB", "tok"))
+    assert r1 == {"ok": 1}
+    assert r2 == {"ok": 1}
