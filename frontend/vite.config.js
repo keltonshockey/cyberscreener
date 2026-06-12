@@ -6,7 +6,7 @@ const apiPaths = [
   '/health', '/auth', '/augur', '/tickers', '/universe', '/earnings',
   '/calibrate', '/backfill', '/debug', '/killer-plays', '/inverse-plays',
   '/signals', '/market', '/intel', '/watchlist', '/notify', '/alerts',
-  '/admin', '/chart',
+  '/admin', '/chart', '/config',
 ]
 
 // Proxy target is env-overridable so the dev server can run against a remote

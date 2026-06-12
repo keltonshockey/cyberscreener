@@ -11,13 +11,15 @@ const NAV_ITEMS = [
   { to: '/world', label: 'World', sub: 'the city', Icon: Globe },
 ];
 
-export function NavBar({ onRunScan, scanRunning }) {
+export function NavBar({ onRunScan, scanRunning, worldEnabled = false }) {
   const { isAdmin } = useAuth();
+  // World tab hidden while the world is paused (WORLD_ENABLED server flag).
+  const items = NAV_ITEMS.filter(i => i.to !== '/world' || worldEnabled);
 
   return (
     <nav className={styles.nav}>
       <div className={styles.links}>
-        {NAV_ITEMS.map(({ to, label, sub, Icon }) => (
+        {items.map(({ to, label, sub, Icon }) => (
           <NavLink
             key={to}
             to={to}

@@ -1987,7 +1987,12 @@ def _enrich_play_metrics(play, price, iv_30d, expected_move):
 def run_scan(tickers=None, enable_sec=True, enable_sentiment=True, callback=None):
     """Run a full scan with v2 scoring + intel layers. Returns list of scored results."""
     if tickers is None:
-        tickers = ALL_TICKERS
+        # Slim universe (SESSION-SLIM-SCOPE): ~100 liquid names from
+        # core/universe_slim.json + dynamic union of open-journal-play tickers
+        # (continuity until plays close). CYBERSCREENER_FULL_UNIVERSE=1 or a
+        # missing/disabled config falls back to the full registry.
+        from core.slim_universe import get_active_tickers
+        tickers = get_active_tickers(ALL_TICKERS)
 
     # ── Pre-fetch Schwab options for previous run's top-25 tickers ───────────
     global _schwab_enrichment
