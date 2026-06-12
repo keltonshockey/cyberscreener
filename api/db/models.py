@@ -743,7 +743,8 @@ def log_play(ticker: str, horizon: str, strategy: str, strike: float,
              expiry: str, dte: int, entry_price: float, entry_iv_rank: float,
              lt_score: float, opt_score: float, rc_score: int,
              direction: str = "bullish", notes: str = "",
-             max_loss: float = None, risk_reward_ratio: float = None) -> int:
+             max_loss: float = None, risk_reward_ratio: float = None,
+             score_version: str = None) -> int:
     """
     Log a generated play to options_plays for P&L tracking.
     Returns the new play ID, or the existing ID if an identical play is
@@ -765,17 +766,24 @@ def log_play(ticker: str, horizon: str, strategy: str, strike: float,
     entry_conviction = None
     if opt_score is not None and lt_score is not None:
         entry_conviction = round(0.6 * opt_score + 0.4 * lt_score, 2)
+    if score_version is None:
+        # Stamp the scoring-regime cohort so gate reads can separate baseline
+        # plays from legacy ones (SESSION-BASELINE-WEIGHTS; never backfilled).
+        from core.baseline import score_version as _active_score_version
+        score_version = _active_score_version()
     cursor = conn.execute("""
         INSERT INTO options_plays
             (ticker, generated_at, horizon, strategy, strike, expiry, dte,
              entry_price, entry_iv_rank, lt_score, opt_score, rc_score,
-             direction, status, notes, max_loss, risk_reward_ratio, entry_conviction)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
+             direction, status, notes, max_loss, risk_reward_ratio, entry_conviction,
+             score_version)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)
     """, (
         ticker, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         horizon, strategy, strike, expiry, dte,
         entry_price, entry_iv_rank, lt_score, opt_score, rc_score,
         direction, notes, max_loss, risk_reward_ratio, entry_conviction,
+        score_version,
     ))
     play_id = cursor.lastrowid
     conn.commit()

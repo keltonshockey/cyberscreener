@@ -122,6 +122,26 @@ def test_killer_plays_smoke(client):
     assert by_ticker["BEARX"]["combined_score"] == 80.0
 
 
+def test_layers_smoke(client):
+    """/layers feeds the UI Layers panel: membership, captions, ref weights."""
+    resp = client.get("/layers")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["score_version"] == "v2-baseline"
+    assert data["baseline"] == {"lt": {"valuation": 100}, "opt": {"asymmetry": 100}}
+    assert data["ref_weights"]["lt"]["valuation"] == 20
+    assert data["layers"], "layers list must not be empty"
+    for name, layer in data["layers"].items():
+        assert layer["caption"], f"{name} missing caption"
+        assert layer["status"], f"{name} missing status"
+    assert "view_semantics" in data
+
+
+def test_scores_latest_carries_score_version(client):
+    data = client.get("/scores/latest").json()
+    assert data["score_version"] == "v2-baseline"
+
+
 def test_scores_latest_empty_db(tmp_path, monkeypatch):
     """An empty DB must yield a graceful 200 + message, not a 500."""
     monkeypatch.setenv("CYBERSCREENER_DB", str(tmp_path / "empty.db"))

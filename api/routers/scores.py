@@ -8,11 +8,23 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Query
 
 from db.models import get_db, get_score_history
+from core.baseline import layers_payload, score_version
 
 router = APIRouter(tags=["scores"])
 
 _latest_scores_cache = {"data": None, "ts": 0, "key": None}
 _sparkline_cache = {"data": None, "ts": 0, "key": None}
+
+
+@router.get("/layers")
+def get_layers():
+    """Baseline membership + the user-addable layers (SESSION-BASELINE-WEIGHTS).
+
+    The UI builds its Layers panel from this — captions and evidence come from
+    core/weights_baseline.json, never hard-coded client-side. Layer views are
+    composed client-side from each row's breakdown raws + the ref_weights here
+    (renormalized composite over baseline + selected layers)."""
+    return layers_payload()
 
 
 @router.get("/prices/sparklines")
@@ -104,6 +116,10 @@ def get_latest_scores(limit: int = Query(100, ge=1, le=600)):
     result = {
         "scan_id": scan["id"],
         "scan_timestamp": scan["timestamp"],
+        # Scoring-regime tag for the rows being served. Rows persisted before
+        # the baseline deploy were scored by the legacy composite regardless —
+        # per-row truth lives in each breakdown JSON's _meta (when present).
+        "score_version": score_version(),
         "results": [dict(r) for r in rows],
     }
     _latest_scores_cache["data"] = result

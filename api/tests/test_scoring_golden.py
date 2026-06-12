@@ -50,7 +50,13 @@ def _score_one(row: dict) -> dict:
         whale_bias=row.get("whale_bias") or "neutral",
     )
     rc = _compute_ticker_rc({**row, "lt_score": lt_score, "opt_score": opt_score})
+    from core.baseline import compute_baseline_lt, compute_baseline_opt
     return {
+        # Baseline scores (SESSION-BASELINE-WEIGHTS): the live scoring regime.
+        # LT = Valuation only, Opt = Asymmetry only, no earnings multiplier.
+        "baseline_lt_score": compute_baseline_lt(lt_breakdown),
+        "baseline_opt_score": compute_baseline_opt(opt_breakdown),
+        # Legacy composite (kept computable behind CYBERSCREENER_LEGACY_SCORES)
         "lt_score": lt_score,
         "lt_points": {k: v["points"] for k, v in lt_breakdown.items()},
         "opt_score": opt_score,
