@@ -288,11 +288,18 @@ def build_narrative_record(
             logger.info("%s attempt %d: unparseable JSON", ticker, attempt)
             continue
         ok, reasons = verify(parsed, snapshot, facts)
-        if ok and critic is not None:
-            crit = critic(parsed, snapshot, facts) or []
-            if crit:
-                ok, reasons = False, reasons + list(crit)
         if ok:
+            # Rules gates (the hard guarantees) passed. The gemma3 critic is a
+            # SOFT semantic check: if it flags the draft we keep the
+            # rules-verified prose but downgrade confidence to "low" (the UI
+            # surfaces a low-confidence note) — we do NOT discard grounded
+            # content over a noisy local critic.
+            confidence = "ok"
+            if critic is not None:
+                crit = critic(parsed, snapshot, facts) or []
+                if crit:
+                    confidence = "low"
+                    logger.info("%s critic flagged -> confidence=low: %s", ticker, crit)
             used = set(parsed.get("used_sources") or [])
             sources = [
                 {"title": f["title"], "url": f["url"]}
@@ -302,7 +309,7 @@ def build_narrative_record(
                 "ticker": ticker, "lt_story": parsed.get("lt_story"),
                 "st_story": parsed.get("st_story"), "sources": sources,
                 "signal_snapshot": snapshot, "snapshot_hash": snapshot_hash(snapshot),
-                "confidence": "ok", "model": model,
+                "confidence": confidence, "model": model,
                 "lt_generated_at": now, "st_generated_at": now,
             }
         last_reasons = reasons

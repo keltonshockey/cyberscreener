@@ -126,6 +126,22 @@ def test_two_failures_fall_to_signals_only_floor():
     assert "64" in rec["st_story"]
 
 
+# ── Critic is a SOFT gate: flags downgrade confidence, keep the prose ─────────
+
+def test_critic_flag_downgrades_confidence_but_keeps_content():
+    def llm(messages, model):
+        return json.dumps(_good_parsed())
+
+    def critic(parsed, snapshot, facts):
+        return ["critic_unsupported"]
+
+    rec = build_narrative_record("HPE", SNAPSHOT, FACTS, llm, model="gemma3", critic=critic)
+    assert rec["confidence"] == "low"          # downgraded
+    assert rec["model"] == "gemma3"            # NOT the +floor model
+    assert rec["lt_story"].startswith("LT score 71")  # rules-verified prose kept
+    assert rec["sources"]                      # sources preserved
+
+
 # ── JSON-shape parse tolerance ────────────────────────────────────────────────
 
 def test_parse_tolerance_handles_fences_and_prose():
