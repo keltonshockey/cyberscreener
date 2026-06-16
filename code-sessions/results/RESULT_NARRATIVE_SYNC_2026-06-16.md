@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-16
 **Branch:** `feat/narrative-sync` (stacked on `feat/narrative-pipeline` / PR #20)
-**Draft PR:** (link at bottom)
+**Draft PR:** https://github.com/keltonshockey/cyberscreener/pull/21 (stacked on #20)
 **Scope:** Phase 3 of NARRATIVE_LAYER_PLAN.md — deliver `narratives.db` from mill to the droplet so the public Ticker page serves it. **The only component that writes to prod**, and it writes exactly one regenerable file into one isolated directory — never code, never `cyberscreener.db`, no service. Out of scope: generation, scoring, any service restart, deploys.
 
 ## Boundary decision honored
