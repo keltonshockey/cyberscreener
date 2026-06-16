@@ -115,6 +115,8 @@ from routers.scores import router as _scores_router
 from routers.market import router as _market_router
 from routers.ticker import router as _ticker_router
 from routers.plays import router as _plays_router
+# Narrative panel — additive, read-only, backed by a SEPARATE narratives.db.
+from routers.narrative import router as _narrative_router
 
 app.include_router(_auth_router)
 app.include_router(_backtest_router)
@@ -122,8 +124,15 @@ app.include_router(_scores_router)
 app.include_router(_market_router)
 app.include_router(_ticker_router)
 app.include_router(_plays_router)
+app.include_router(_narrative_router)
 
 init_db()
+# Bootstrap the separate narratives store (regenerable; never touches the prod DB).
+try:
+    from db.narratives import init_narratives_db
+    init_narratives_db()
+except Exception as _ne:
+    print(f"Narratives store init warning: {_ne}")
 try:
     _run_timing_migration()
     print("✅ Timing migration complete")
