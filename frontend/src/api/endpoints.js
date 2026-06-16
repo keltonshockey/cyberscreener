@@ -85,6 +85,12 @@ export const removeWatchlistTicker = (ticker) => api(`/watchlist/${ticker}`, { m
 export const analyzePlaysTicker = (ticker) => api(`/plays/${ticker}/analyze`, { method: 'POST' });
 export const fetchAIStatus = () => api('/ai/status');
 
+// ── Narrative (per-ticker LT/ST story panel) ──
+// Returns the story payload on 200, or { status: "generating" } on 202 while
+// the mill-side pipeline drafts it. api() treats 2xx as success, so the 202
+// body falls through unchanged.
+export const fetchNarrative = (ticker) => api(`/narrative/${ticker}`);
+
 // ── UI config (runtime feature flags, e.g. the world pause) ──
 export const fetchUiConfig = () => api('/config/ui');
 
