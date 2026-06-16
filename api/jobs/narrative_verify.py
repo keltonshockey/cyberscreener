@@ -146,9 +146,13 @@ def verify(parsed: dict, snapshot: dict, facts: list) -> tuple:
             reasons.append("unsupported_citation")
             break
 
-    # cite-only-fetched: used_sources must all be fetched fact ids
+    # cite-only-fetched: any EXTERNAL source cited must be a fetched fact id.
+    # "signal" is the in-house grounding id (not an external source), so it is
+    # exempt from the fabrication check.
     fetched_ids = {f["id"] for f in (facts or [])}
     for sid in used:
+        if sid == "signal":
+            continue
         if sid not in fetched_ids:
             reasons.append("fabricated_source")
             break
