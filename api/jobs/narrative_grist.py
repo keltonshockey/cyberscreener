@@ -76,8 +76,8 @@ def call_grist(
     base: str | None = None,
     key: str | None = None,
     temperature: float = 0.2,
-    max_tokens: int = 700,
-    timeout: int = 90,
+    max_tokens: int = 1400,
+    timeout: int = 120,
 ) -> str:
     """Single chat-completions call. Returns the assistant message content.
 

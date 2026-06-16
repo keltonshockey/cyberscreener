@@ -173,10 +173,12 @@ _SYSTEM_PROMPT = (
     "(never write phrases like 'leading provider of' or 'world-class'). Every "
     "claim must trace to a provided signal value or a provided source id. "
     "Cite a source by its id (e.g. 'sec1', 'news2'); use the id 'signal' for a "
-    "claim grounded directly on a signal value. Output STRICT JSON only, no "
+    "claim grounded directly on a signal value. Do NOT put citation markers "
+    "inside the story prose — keep lt_story and st_story clean readable text; "
+    "citations belong only in the claims array. Output STRICT JSON only, no "
     "prose around it, with keys: lt_story, st_story, claims, used_sources. "
-    "'claims' is a list of {text, source_id}. 'used_sources' is a list of the "
-    "source ids you cited."
+    "'claims' is a list of at most 8 {text, source_id} objects covering the key "
+    "points. 'used_sources' is a list of the source ids you cited."
 )
 
 
