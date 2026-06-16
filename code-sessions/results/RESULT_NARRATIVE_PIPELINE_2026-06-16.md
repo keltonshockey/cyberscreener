@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-16
 **Branch:** `feat/narrative-pipeline` (stacked on `feat/narrative-store-api` / PR #19)
-**Draft PR:** (see link at bottom)
+**Draft PR:** https://github.com/keltonshockey/cyberscreener/pull/20 (stacked on #19)
 **Scope:** Phase 2 of NARRATIVE_LAYER_PLAN.md — the mill-side Grist generator. Drafts the per-ticker LT + ST narrative with a LOCAL model (gemma3), grounds + fact-checks it, writes `narratives.db`. **No Claude tokens by default. Reads the live system read-only; writes only `narratives.db`.** Out of scope: droplet delivery (part 3), any scoring change, deploys.
 
 ## Files added (`api/jobs/`)
