@@ -16,6 +16,7 @@ import {
 } from '../components/ui/icons';
 import { generatePlays, fetchPlayStatus, fetchPlayHistory, fetchWeights, updateWeights, fetchInversePlays, analyzePlaysTicker, fetchKillerPlays } from '../api/endpoints';
 import { getRC, rcVerdict, rcBreakdown } from '../utils/scoring';
+import { NarrativeBlurb } from '../components/NarrativeBlurb';
 import { fmtExpiry, fmtTimeOnly } from '../utils/formatters';
 import { useAuth } from '../auth/AuthContext';
 import styles from './PactumPage.module.css';
@@ -338,6 +339,9 @@ export function PactumPage({ latest, defaultTicker, tz }) {
             <Metric label="Beta" value={p.beta != null ? Number(p.beta).toFixed(1) : '—'} />
             <Metric label="Vol Ratio" value={p.vol_ratio != null ? p.vol_ratio + 'x' : '—'} />
           </div>
+          {/* Narrative "Why this?" — one per ticker (all plays here share p.ticker);
+              lazy on expand, prefers the short-term story (the "why this play"). */}
+          <NarrativeBlurb key={p.ticker} ticker={p.ticker} prefer="st" tz={tz} />
         </Card>
 
         {/* Play sort controls */}

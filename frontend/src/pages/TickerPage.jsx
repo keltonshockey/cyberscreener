@@ -13,9 +13,9 @@ import { Badge } from '../components/ui/Badge';
 import { Explain } from '../components/ui/Explain';
 import { Scale, Scroll, Ruler, Zap, LineChart, Activity, Landmark } from '../components/ui/icons';
 import { SvgBarChart } from '../components/charts/SvgBarChart';
+import { StoryPanel } from '../components/NarrativeBlurb';
 import { fetchScoreHistory, fetchSignals, fetchChart, fetchNarrative } from '../api/endpoints';
 import { ltBreakdown, optBreakdown } from '../utils/scoring';
-import { fmtTS, fmtDateOnly } from '../utils/formatters';
 import styles from './TickerPage.module.css';
 
 function ScoreBreakdownCard({ title, term, Icon, score, breakdown }) {
@@ -56,97 +56,6 @@ function MiniChart({ data, dataKey, labelKey, height, title }) {
     <Card style={{ padding: 20 }}>
       <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>{title}</h3>
       <SvgBarChart data={data} dataKey={dataKey} labelKey={labelKey} height={height} />
-    </Card>
-  );
-}
-
-function StorySection({ title, term, Icon, text, generatedAt, tz }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        {Icon && <Icon size={13} />}
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--color-text-secondary)' }}>{title}</span>
-        {term && <Explain term={term} />}
-      </div>
-      <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0, color: 'var(--color-text-primary)' }}>
-        {text || <span style={{ color: 'var(--color-text-tertiary)' }}>No story yet.</span>}
-      </p>
-      {generatedAt && (
-        <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 6 }}>
-          as of {fmtDateOnly(generatedAt, tz)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StoryPanel({ narrative, tz }) {
-  // Nothing fetched yet (initial mount) — render nothing rather than a flash.
-  if (!narrative) return null;
-
-  // 202 from the API: the mill pipeline hasn't drafted this ticker yet.
-  if (narrative.status === 'generating') {
-    return (
-      <Card style={{ padding: 20 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 10px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <Scroll size={15} /> Story
-        </h3>
-        <p style={{ fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>
-          Generating narrative… check back shortly.
-        </p>
-      </Card>
-    );
-  }
-
-  const sources = narrative.sources || [];
-  const lowConfidence = narrative.confidence && narrative.confidence !== 'ok';
-  const fresh = !narrative.stale;
-  const dotColor = fresh ? 'var(--color-success)' : 'var(--color-warning)';
-
-  return (
-    <Card style={{ padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <Scroll size={15} /> Story
-        </h3>
-        <span
-          title={fresh ? 'Fresh' : 'Stale — refresh pending'}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)' }}
-        >
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, display: 'inline-block' }} />
-          {fresh ? 'Fresh' : 'Stale'}
-        </span>
-      </div>
-
-      {lowConfidence && (
-        <div style={{ fontSize: 11, color: 'var(--color-warning)', marginBottom: 12, padding: '6px 10px', borderRadius: 6, background: 'var(--color-bg)', borderLeft: '3px solid var(--color-warning)' }}>
-          Low-confidence note — grounded on system signals only; external claims were withheld.
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-        <StorySection title="Long-term" term="lt_score" Icon={Ruler} text={narrative.lt_story} generatedAt={narrative.lt_generated_at} tz={tz} />
-        <StorySection title="Short-term" term="opt_score" Icon={Zap} text={narrative.st_story} generatedAt={narrative.st_generated_at} tz={tz} />
-      </div>
-
-      {sources.length > 0 && (
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--color-border-subtle)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 6 }}>Sources</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {sources.map((s, i) => (
-              <a
-                key={i}
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 11, color: 'var(--imperial-purple-light, var(--imperial-purple))', textDecoration: 'none' }}
-              >
-                {s.title || s.url}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
     </Card>
   );
 }
