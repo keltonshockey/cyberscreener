@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Narrative delivery (SESSION-NARRATIVE-SYNC). STAGED - operator installs only
+     AFTER the restricted droplet key is in place and a first manual delivery has
+     been verified (see scripts/NARRATIVE_SYNC_RUNBOOK.md):
+       cp scripts/mill/com.mill.cs-narrative-sync.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.mill.cs-narrative-sync.plist
+     Every 15 min. The script no-ops via hash-compare when nothing changed, so the
+     cadence is cheap; it is outbound-only (rsync over ssh) and touches no service.
+     Tip: the pipeline can also call push_narratives.sh directly after it writes,
+     making this timer a backstop. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mill.cs-narrative-sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>$HOME/cyberscreener/scripts/mill/push_narratives.sh</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>900</integer>
+    <key>StandardOutPath</key>
+    <string>/tmp/cs-narrative-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/cs-narrative-sync.err</string>
+</dict>
+</plist>
