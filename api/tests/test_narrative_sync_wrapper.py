@@ -83,3 +83,13 @@ def test_rejects_dangerous_options():
 
 def test_rejects_command_chaining():
     assert _run("rsync --server -vlog . narratives.db; rm -rf /").returncode != 0
+
+
+# ── Delivery-consistency: store default == this wrapper's pinned destination ──
+
+def test_store_default_path_matches_wrapper_pinned_destination():
+    # The whole point of the narratives-ops reconcile: the router's default
+    # narratives.db location and this wrapper's hard-pinned rsync destination are
+    # ONE constant, so prod serves the delivered file with no systemd drop-in.
+    from db.narratives import CANONICAL_NARRATIVES_DB
+    assert CANONICAL_NARRATIVES_DB == PINNED

@@ -13,11 +13,15 @@
 <dict>
     <key>Label</key>
     <string>com.mill.cs-narrative-sync</string>
+    <!-- Exports the ONE canonical source path so SRC in push_narratives.sh
+         resolves explicitly to the same file the generator writes; secrets are
+         sourced for the Pushover-on-failure path. $HOME is shell-expanded here
+         (launchd EnvironmentVariables would not expand it). -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/sh</string>
         <string>-c</string>
-        <string>$HOME/cyberscreener/scripts/mill/push_narratives.sh</string>
+        <string>set -a; . "$HOME/.config/grist/mill-secrets.env"; set +a; export CYBERSCREENER_NARRATIVES_DB="$HOME/cs-narratives/narratives.db"; exec "$HOME/cyberscreener/scripts/mill/push_narratives.sh"</string>
     </array>
     <key>StartInterval</key>
     <integer>900</integer>

@@ -14,7 +14,10 @@
 # "generating" when the file is missing/stale.
 #
 # Configuration (override via environment):
-#   CS_NARRATIVES_DB   source narratives.db on mill   (default ~/cs-narratives/narratives.db)
+#   CYBERSCREENER_NARRATIVES_DB  source narratives.db on mill — the ONE canonical
+#                      env var shared with the generator + droplet router; takes
+#                      precedence over CS_NARRATIVES_DB.
+#   CS_NARRATIVES_DB   legacy fallback for the source path (default ~/cs-narratives/narratives.db)
 #   NARRATIVE_SYNC_KEY restricted private key         (default ~/.ssh/narrative_sync_ed25519)
 #   NARRATIVE_DROPLET  user@host for the sync user    (default narrative@cyber.keltonshockey.com)
 #   NARRATIVE_DROPLET_PORT  ssh port                  (default 22)
@@ -23,7 +26,7 @@
 #   PUSHOVER_USER) — vault-backed, never inline here.
 set -eu
 
-SRC="${CS_NARRATIVES_DB:-$HOME/cs-narratives/narratives.db}"
+SRC="${CYBERSCREENER_NARRATIVES_DB:-${CS_NARRATIVES_DB:-$HOME/cs-narratives/narratives.db}}"
 KEY="${NARRATIVE_SYNC_KEY:-$HOME/.ssh/narrative_sync_ed25519}"
 DROPLET="${NARRATIVE_DROPLET:-narrative@cyber.keltonshockey.com}"
 PORT="${NARRATIVE_DROPLET_PORT:-22}"

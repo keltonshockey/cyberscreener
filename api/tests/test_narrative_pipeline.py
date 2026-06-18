@@ -14,10 +14,12 @@ import pytest
 
 from jobs import narrative_verify as V
 from jobs import narrative_grist as G
+import jobs.narrative_pipeline as P
 from jobs.narrative_pipeline import (
     build_signal_snapshot, parse_generation, signals_only_narrative,
     build_narrative_record, snapshot_hash,
 )
+import db.narratives as N
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -177,3 +179,79 @@ def test_call_grist_refuses_claude_without_escalate():
     # resolve_model never returns claude unless escalate is set
     assert G.resolve_model(escalate=False, model="claude-sonnet") == "gemma3"
     assert G.resolve_model(escalate=True, model="claude-sonnet") == "claude-sonnet"
+
+
+# ── Canonical narratives path: store default == sync destination, no drop-in ──
+
+CANONICAL = "/opt/cyberscreener/data/narratives/narratives.db"
+
+
+def test_default_narratives_path_is_canonical_droplet_location():
+    # The default is the sync wrapper's pinned destination — so a fresh pull +
+    # restart serves the delivered file with no systemd drop-in.
+    assert N.CANONICAL_NARRATIVES_DB == CANONICAL
+    assert N._default_narratives_path() == CANONICAL
+
+
+def test_default_no_longer_derived_from_prod_db_path(monkeypatch):
+    # Old behavior derived narratives.db from CYBERSCREENER_DB's dir; the new
+    # default must ignore the prod DB path entirely.
+    monkeypatch.setenv("CYBERSCREENER_DB", "/some/other/place/cyberscreener.db")
+    assert N._default_narratives_path() == CANONICAL
+
+
+def test_db_path_falls_back_to_canonical_when_env_unset(monkeypatch):
+    monkeypatch.delenv("CYBERSCREENER_NARRATIVES_DB", raising=False)
+    assert N._db_path() == CANONICAL
+
+
+def test_db_path_honors_explicit_env_override(monkeypatch):
+    monkeypatch.setenv("CYBERSCREENER_NARRATIVES_DB", "/tmp/custom/narratives.db")
+    assert N._db_path() == "/tmp/custom/narratives.db"
+
+
+# ── --universe selection: generate for every scored ticker, ignore the queue ──
+
+def _stub_record(ticker, snapshot, facts, llm, **kw):
+    return {
+        "ticker": ticker, "lt_story": "x", "st_story": "y", "sources": [],
+        "signal_snapshot": snapshot, "snapshot_hash": "h", "confidence": "ok",
+        "model": "gemma3", "lt_generated_at": "t", "st_generated_at": "t",
+    }
+
+
+def test_universe_mode_processes_every_scored_ticker(monkeypatch):
+    scores = {
+        "HPE": {"ticker": "HPE", "sector": "tech"},
+        "IBM": {"ticker": "IBM", "sector": "tech"},
+        "AMD": {"ticker": "AMD", "sector": "semis"},
+    }
+    monkeypatch.setattr(P, "fetch_latest_scores", lambda *a, **k: scores)
+    monkeypatch.setattr(P, "assemble_facts", lambda *a, **k: [])
+    monkeypatch.setattr(P, "build_narrative_record", _stub_record)
+    # If universe selection leaned on the queue this would matter; it must not.
+    monkeypatch.setattr(P, "select_work", lambda *a, **k: (_ for _ in ()).throw(
+        AssertionError("universe mode must not call select_work")))
+
+    res = P.run(universe=True, dry_run=True, use_critic=False)
+    assert sorted(p["ticker"] for p in res["processed"]) == ["AMD", "HPE", "IBM"]
+
+
+def test_universe_mode_aborts_cleanly_when_no_scores(monkeypatch):
+    monkeypatch.setattr(P, "fetch_latest_scores", lambda *a, **k: {})
+    res = P.run(universe=True, dry_run=True, use_critic=False)
+    assert res.get("error") == "no_scores"
+    assert res["processed"] == []
+
+
+def test_non_universe_run_still_uses_select_work(monkeypatch):
+    # The lazy/explicit path is unchanged: it consults select_work and no-ops
+    # when there is nothing queued or stale.
+    monkeypatch.setattr(P, "select_work", lambda explicit=None: [])
+    called = {"scores": False}
+    monkeypatch.setattr(P, "fetch_latest_scores",
+                        lambda *a, **k: called.__setitem__("scores", True) or {})
+    res = P.run(universe=False, dry_run=True, use_critic=False)
+    assert res["processed"] == []
+    # empty work short-circuits before fetching scores (behavior preserved)
+    assert called["scores"] is False

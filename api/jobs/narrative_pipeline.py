@@ -14,6 +14,7 @@ a LOCAL model (gemma3), grounds + fact-checks it, and writes `narratives.db`.
 
 Run on mill:
     cd api && python -m jobs.narrative_pipeline                # lazy: view_queue + stale
+    cd api && python -m jobs.narrative_pipeline --universe --no-critic  # whole slim universe (timer mode)
     cd api && python -m jobs.narrative_pipeline --ticker HPE   # one ticker
     cd api && python -m jobs.narrative_pipeline --ticker HPE --escalate --model claude-sonnet
     cd api && python -m jobs.narrative_pipeline --dry-run      # don't write / clear queue
@@ -335,18 +336,36 @@ def run(
     dry_run: bool = False,
     api_base: str = DEFAULT_API_BASE,
     use_critic: bool = True,
+    universe: bool = False,
 ) -> dict:
     init_narratives_db()
     chosen_model = resolve_model(escalate=escalate, model=model)
     if escalate and (not explicit or len(explicit) != 1):
         raise SystemExit("--escalate requires exactly one --ticker")
 
-    work = select_work(explicit)
+    # Universe mode generates for EVERY ticker in the slim universe (GET
+    # /scores/latest), independent of the lazy cross-box view_queue. This is the
+    # mode the mill timer runs (`--universe --no-critic`): the queue lives on the
+    # droplet and each sync overwrites narratives.db there, so lazy selection
+    # cannot see it from mill — refreshing the whole universe on a cadence
+    # sidesteps that until the cross-box queue is split out (future item).
+    scores = None
+    if universe:
+        scores = fetch_latest_scores(api_base)
+        if not scores:
+            logger.warning("no scores available — aborting this run (live system unreachable?)")
+            return {"processed": [], "model": chosen_model, "error": "no_scores"}
+        work = sorted(scores.keys())
+        logger.info("universe mode: %d tickers from /scores/latest", len(work))
+    else:
+        work = select_work(explicit)
+
     if not work:
         logger.info("no work (empty view_queue, nothing stale)")
         return {"processed": [], "model": chosen_model}
 
-    scores = fetch_latest_scores(api_base)
+    if scores is None:
+        scores = fetch_latest_scores(api_base)
     if not scores:
         logger.warning("no scores available — aborting this run (live system unreachable?)")
         return {"processed": [], "model": chosen_model, "error": "no_scores"}
@@ -414,6 +433,9 @@ def critic_pass(parsed: dict, snapshot: dict, facts: list, llm, model: str) -> l
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Narrative pipeline (mill-side, gemma3)")
     ap.add_argument("--ticker", action="append", help="process this ticker (repeatable)")
+    ap.add_argument("--universe", action="store_true",
+                    help="generate for every ticker in GET /scores/latest (the slim universe); "
+                         "ignores the lazy view_queue. The cadence/timer mode.")
     ap.add_argument("--escalate", action="store_true", help="permit a claude-* model for ONE ticker")
     ap.add_argument("--model", help="model override (only honored with --escalate)")
     ap.add_argument("--dry-run", action="store_true", help="generate but do not write narratives.db")
@@ -424,6 +446,7 @@ def main(argv=None):
     result = run(
         explicit=args.ticker, escalate=args.escalate, model=args.model,
         dry_run=args.dry_run, api_base=args.api_base, use_critic=not args.no_critic,
+        universe=args.universe,
     )
     print(json.dumps(result, indent=2))
     return 0

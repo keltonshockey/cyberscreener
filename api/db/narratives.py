@@ -30,12 +30,33 @@ logger = logging.getLogger(__name__)
 # ── Narrative config block ──────────────────────────────────────────────────
 # Module-level, env-overridable constants (the project's config-loader idiom —
 # see DB_PATH in db/models.py and the JWT/password constants in deps.py). No
-# secrets live here. The narratives DB defaults to sitting alongside the prod DB
-# but in a DISTINCT file so the two never share a connection or a backup.
+# secrets live here.
+#
+# ONE env var controls where narratives.db lives, end to end:
+#
+#     CYBERSCREENER_NARRATIVES_DB    absolute path to narratives.db
+#
+# It is the single knob the mill generator, the mill->droplet push wrapper
+# (scripts/mill/push_narratives.sh), and the droplet router all read, so all
+# three resolve the SAME file. When it is unset we default to CANONICAL_
+# NARRATIVES_DB below — which is exactly the destination the sync wrapper
+# (bin/narrative-rsync-only.sh) hard-pins. That makes a fresh `git pull` +
+# restart serve the delivered file with NO systemd drop-in. narratives.db is a
+# DISTINCT file from the prod DB so the two never share a connection or backup.
+
+# Canonical droplet location for narratives.db. Must match DEST_DIR in
+# bin/narrative-rsync-only.sh (the rsync forced-command destination) — the
+# store's default and the sync target are deliberately one constant.
+CANONICAL_NARRATIVES_DB = "/opt/cyberscreener/data/narratives/narratives.db"
+
 
 def _default_narratives_path() -> str:
-    prod = os.environ.get("CYBERSCREENER_DB", "/app/data/cyberscreener.db")
-    return os.path.join(os.path.dirname(prod) or ".", "narratives.db")
+    """Default narratives.db path when CYBERSCREENER_NARRATIVES_DB is unset.
+
+    Returns the canonical droplet location (the sync wrapper's pinned
+    destination), NOT a path derived from the prod DB_PATH — so prod serves the
+    delivered file directly, with no systemd drop-in to bridge a mismatch."""
+    return CANONICAL_NARRATIVES_DB
 
 # Freshness TTLs the router uses to compute the `stale` flag.
 ST_TTL_HOURS = int(os.environ.get("NARRATIVE_ST_TTL_HOURS", "24"))   # short-term story

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Narrative generation (SESSION-NARRATIVE-OPS). STAGED - operator installs only
+     AFTER feat/narrative-ops is merged + the droplet redeployed (and the now-
+     redundant systemd drop-in removed). See the RESULT_NARRATIVE_OPS runbook.
+       cp scripts/mill/com.mill.cs-narrative.plist ~/Library/LaunchAgents/
+       launchctl load -w ~/Library/LaunchAgents/com.mill.cs-narrative.plist
+       launchctl start com.mill.cs-narrative   # one manual run, then leave it
+
+     Regenerates the WHOLE slim universe (GET /scores/latest) with the local
+     gemma3 model every ~6h. ST TTL is 24h / LT 7d, so 6h keeps ST fresh without
+     churn. ~116 tickers x ~34s ~= ~65 min/run; off-peak. `--universe` sidesteps
+     the cross-box lazy view_queue (the queue lives on the droplet, which each
+     sync overwrites). `--no-critic` skips the optional second gemma3 pass.
+
+     Outbound-only: mill LiteLLM (HTTPS) + read-only GET /scores/latest. Writes
+     ONLY $HOME/cs-narratives/narratives.db (the sync job ships it). Touches no
+     prod service, no cyberscreener.db. mill-secrets.env supplies the LiteLLM /
+     Grist creds (vault-backed; never inline). CYBERSCREENER_NARRATIVES_DB pins
+     the mill-side store path so generate + push + droplet router agree. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mill.cs-narrative</string>
+    <!-- CYBERSCREENER_NARRATIVES_DB is exported in the shell line below so $HOME
+         expands correctly (launchd EnvironmentVariables would not expand it). -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>set -a; . "$HOME/.config/grist/mill-secrets.env"; set +a; export CYBERSCREENER_NARRATIVES_DB="$HOME/cs-narratives/narratives.db"; cd "$HOME/cyberscreener/api" &amp;&amp; exec python3 -m jobs.narrative_pipeline --universe --no-critic</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>21600</integer>
+    <key>StandardOutPath</key>
+    <string>/tmp/cs-narrative.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/cs-narrative.err</string>
+</dict>
+</plist>
