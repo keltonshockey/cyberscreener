@@ -644,6 +644,36 @@ def ui_config():
     return {"world_enabled": os.environ.get("WORLD_ENABLED", "0") == "1"}
 
 
+def _scan_window_active(dt_utc):
+    """True when the scheduler is expected to be running scans at dt_utc.
+
+    Mirrors scheduler.is_market_hours(): weekday, 06:00-22:59 UTC. The droplet
+    runs in UTC, so the scheduler's naive datetime.now() equals UTC. Used to make
+    /health's scan_stale flag market-hours-aware, so it does not fire during the
+    normal overnight scan pause (the cause of the Kuma monitor's nightly flap).
+    """
+    return dt_utc.weekday() < 5 and 6 <= dt_utc.hour <= 22
+
+
+def _compute_scan_stale(scan_age_seconds, now_utc):
+    """Market-hours-aware staleness verdict for /health (pure, testable).
+
+    Stale only if scans are overdue AND the scheduler was expected to be scanning
+    both now and a full threshold ago -- the second check gives a grace window at
+    the 06:00 UTC open so the normal overnight gap + morning cold-start do not read
+    as a stall. Returns None when age is unknown.
+    """
+    from datetime import timedelta
+    if scan_age_seconds is None:
+        return None
+    tight = 75 * 60  # ~2.5 missed 30-min scans
+    return bool(
+        scan_age_seconds > tight
+        and _scan_window_active(now_utc)
+        and _scan_window_active(now_utc - timedelta(seconds=tight))
+    )
+
+
 @app.get("/health")
 def health():
     import os, subprocess
@@ -651,11 +681,13 @@ def health():
 
     last_scan_utc = None
     scan_age_seconds = None
+    latest_scan_id = None
     try:
         conn = get_db()
-        row = conn.execute("SELECT timestamp FROM scans ORDER BY id DESC LIMIT 1").fetchone()
+        row = conn.execute("SELECT id, timestamp FROM scans ORDER BY id DESC LIMIT 1").fetchone()
         conn.close()
         if row:
+            latest_scan_id = row["id"]
             last_scan_utc = row["timestamp"]
             ts = datetime.fromisoformat(last_scan_utc)
             if ts.tzinfo is None:
@@ -663,6 +695,10 @@ def health():
             scan_age_seconds = int((datetime.now(timezone.utc) - ts).total_seconds())
     except Exception:
         pass
+
+    # Market-hours-aware staleness -- what a freshness monitor should alert on;
+    # scan_age_seconds alone flaps DOWN every night when scans legitimately pause.
+    scan_stale = _compute_scan_stale(scan_age_seconds, datetime.now(timezone.utc))
 
     db_size_mb = None
     try:
@@ -685,6 +721,9 @@ def health():
         "status": "ok",
         "last_scan_utc": last_scan_utc,
         "scan_age_seconds": scan_age_seconds,
+        "latest_scan_id": latest_scan_id,
+        "scan_stale": scan_stale,
+        "in_scan_window": _scan_window_active(datetime.now(timezone.utc)),
         "db_size_mb": db_size_mb,
         "droplet": "64.23.150.209",
         "version": version,
