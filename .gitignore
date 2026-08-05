@@ -27,6 +27,10 @@ frontend/dist/
 .vscode/
 .idea/
 
+# Research outputs (generated artifacts; the directory itself is tracked)
+research/out/*
+!research/out/.gitkeep
+
 # Claude
 .claude/
 .vault/
