@@ -201,9 +201,26 @@ def render_markdown(table: dict, evaluation: dict, db_path: str, as_of: str) -> 
     return "\n".join(lines)
 
 
+def verdict_tag(evaluation: dict) -> str:
+    """PASS / FAIL / NO-VERDICT — the first thing a human must see."""
+    if evaluation["pass_bar_met"]:
+        return "PASS"
+    if evaluation["fail_rule_triggered"]:
+        return "FAIL"
+    return "NO-VERDICT"
+
+
 def summary_line(table: dict, evaluation: dict, as_of: str) -> str:
-    """One Pushover-sized line. Prefers cohort C; falls back to B while C is
-    empty (clearly labeled)."""
+    """
+    One Pushover-sized line, LEADING with PASS / FAIL / NO-VERDICT.
+
+    The prefix exists because the 2026-08-02 gate FAIL sat unread for two days
+    (RESULT_EDGE_INTERIM_2026-08-04, ops findings): the verdict was at the END
+    of the line, past the stats, where a phone notification truncates it. A
+    weekly alert whose headline is invisible is the §9 "monitoring is a
+    component too" failure. Cohort preference is unchanged: C, falling back to
+    B then A while C is empty (clearly labeled).
+    """
     c = table["C"][GATE_AGG]
     if c["n_decided"] > 0:
         m, label = c, "C"
@@ -212,7 +229,8 @@ def summary_line(table: dict, evaluation: dict, as_of: str) -> str:
     else:
         m, label = table["A"][GATE_AGG], "A (context - no B/C plays yet)"
     wr = _fmt(m["win_rate"])
-    return (f"Gate {as_of} cohort {label}: n={m['n_decided']} win={wr} "
+    return (f"{verdict_tag(evaluation)} - Gate {as_of} cohort {label}: "
+            f"n={m['n_decided']} win={wr} "
             f"payoff={_fmt(m['payoff_ratio'])} [{m['significance']}] - "
             f"{evaluation['verdict']}")
 
@@ -235,8 +253,14 @@ def send_pushover(message: str) -> bool:
     data = urllib.parse.urlencode(
         {"token": token, "user": user, "message": message}).encode()
     req = urllib.request.Request("https://api.pushover.net/1/messages.json", data=data)
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return resp.status == 200
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as exc:
+        # Report the failure rather than dying: the gate markdown is already on
+        # disk by this point, and a crash here would obscure a completed read.
+        print(f"pushover: send failed ({type(exc).__name__}: {exc})", file=sys.stderr)
+        return False
 
 
 def main(argv=None):
@@ -270,7 +294,11 @@ def main(argv=None):
     if args.json:
         print(json.dumps({"table": table, "evaluation": evaluation}, default=str))
     if args.pushover:
-        send_pushover(line)
+        # Read the response. A notifier whose reply goes to /dev/null reports
+        # "sent" for an alert that went nowhere — OPERATIONS_PLAYBOOK 9b names
+        # exactly this pattern in three sibling scripts.
+        ok = send_pushover(line)
+        print(f"pushover: {'accepted' if ok else 'NOT ACCEPTED'}")
 
 
 if __name__ == "__main__":

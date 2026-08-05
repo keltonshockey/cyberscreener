@@ -214,7 +214,39 @@ def test_summary_line_prefers_c_falls_back_to_b(conn):
     _seed_cohort_c(conn, 2, 1)
     table = gr.gate_table(conn)
     line = gr.summary_line(table, gr.evaluate(table), "2026-06-21")
-    assert line.startswith("Gate 2026-06-21 cohort C:")
+    assert "Gate 2026-06-21 cohort C:" in line
+
+
+# ── the Pushover headline (RESULT_EDGE_INTERIM ops finding) ────────────────────
+
+def test_summary_line_leads_with_no_verdict(conn):
+    """Underpowered cohort C must announce NO-VERDICT first, not last."""
+    _seed_cohort_c(conn, 2, 1)
+    line = gr.summary_line(gr.gate_table(conn), gr.evaluate(gr.gate_table(conn)),
+                           "2026-06-21")
+    assert line.startswith("NO-VERDICT - "), line
+
+
+def test_summary_line_leads_with_fail_when_rule_triggers(conn):
+    """
+    The 2026-08-02 shape: n>=80, win<0.50. This is the read that sat unnoticed
+    for two days because the verdict was at the end of the line.
+    """
+    _seed_cohort_c(conn, 20, 70)          # n=90, win 22% — fail rule armed
+    table = gr.gate_table(conn)
+    ev = gr.evaluate(table)
+    assert ev["fail_rule_triggered"] is True
+    line = gr.summary_line(table, ev, "2026-08-02")
+    assert line.startswith("FAIL - "), line
+    # And the headline must survive a phone-notification truncation.
+    assert "FAIL" in line[:20]
+
+
+def test_verdict_tag_covers_all_three_states():
+    """Every branch of the tag is reachable — no decorative label."""
+    assert gr.verdict_tag({"pass_bar_met": True, "fail_rule_triggered": False}) == "PASS"
+    assert gr.verdict_tag({"pass_bar_met": False, "fail_rule_triggered": True}) == "FAIL"
+    assert gr.verdict_tag({"pass_bar_met": False, "fail_rule_triggered": False}) == "NO-VERDICT"
 
 
 # ── read-only guarantee ────────────────────────────────────────────────────────

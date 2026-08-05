@@ -267,11 +267,25 @@ DESTRUCTIVE_WHITELIST = {
 }
 
 
+# Third-party code vendored into the tree is not ours to police. A virtualenv at
+# api/venv (the layout the Makefile names FIRST) puts pandas, peewee and friends
+# under a SCAN_DIR, and they legitimately contain DROP TABLE / DELETE FROM — so
+# the guard would fail on vendored source instead of on our own.
+#
+# R1 did not hit this only because its api/venv was a symlink and Path.rglob does
+# not descend into symlinked directories; a real `python3.11 -m venv api/venv`
+# turns the guard red. Excluding these restores the guard's intended scope
+# (first-party api/ + scripts/) and narrows nothing about our own code.
+VENDOR_MARKERS = ("site-packages", "dist-packages", "/venv/", "/.venv/", "node_modules")
+
+
 def _iter_sources():
     for d in SCAN_DIRS:
         for path in sorted((REPO_ROOT / d).rglob("*.py")):
             rel = path.relative_to(REPO_ROOT).as_posix()
             if "/tests/" in f"/{rel}" or "__pycache__" in rel:
+                continue
+            if any(m in f"/{rel}" for m in VENDOR_MARKERS):
                 continue
             yield rel, path
 
