@@ -591,3 +591,112 @@ If the survivors' equal-weight composite does not beat Valuation alone on OOS qu
 spread at 12mo, the added predictors earn no place and the composite spec ships as
 Valuation-only.
 
+
+---
+
+# MILESTONE D — RESULTS (executed against the pre-registration above)
+
+Panel: 422 names with both prices and companyfacts, median 404 names/snapshot, same 127
+monthly snapshots. **20 hypotheses** exactly as registered.
+
+## Full sweep
+
+| predictor | horizon | mean IC | t | H1 | H2 | OOS Q5−Q1 | turnover | verdict |
+|---|---|---|---|---|---|---|---|---|
+| BM | 6mo | −0.0057 | −0.41 | −0.0671 | +0.0568 | +2.72% | 3.6% | not supported |
+| BM | 12mo | −0.0033 | −0.22 | −0.1010 | +0.0960 | +8.04% | 3.6% | not supported |
+| EP | 6mo | +0.0026 | +0.25 | −0.0504 | +0.0565 | −0.73% | 5.6% | not supported |
+| EP | 12mo | −0.0017 | −0.17 | −0.0539 | +0.0514 | −4.88% | 5.6% | not supported |
+| CF | 6mo | +0.0107 | +0.73 | −0.0676 | +0.0902 | +4.11% | 5.2% | not supported |
+| CF | 12mo | +0.0193 | +1.26 | −0.0902 | +0.1306 | +7.28% | 5.2% | not supported |
+| GP | 6mo | +0.0147 | +1.23 | +0.0512 | −0.0223 | −3.19% | 2.5% | not supported |
+| GP | 12mo | +0.0198 | +1.62 | +0.0767 | −0.0380 | −10.68% | 2.5% | not supported |
+| OperProf | 6mo | +0.0106 | +1.12 | −0.0222 | +0.0439 | +0.62% | 3.0% | not supported |
+| OperProf | 12mo | +0.0062 | +0.68 | −0.0172 | +0.0300 | −3.75% | 3.0% | not supported |
+| Accruals | 6mo | −0.0025 | −0.34 | +0.0002 | −0.0053 | +0.93% | 4.3% | not supported |
+| Accruals | 12mo | +0.0087 | +1.48 | +0.0051 | +0.0124 | +3.67% | 4.3% | not supported |
+| **NOA** | 6mo | **+0.0433** | **+3.35** | +0.0183 | +0.0687 | **+2.06%** | 3.2% | **SUPPORTED** |
+| **NOA** | 12mo | **+0.0621** | **+5.54** | +0.0419 | +0.0827 | **+3.54%** | 3.2% | **SUPPORTED** |
+| AssetGrowth | 6mo | −0.0292 | −2.75 | −0.0725 | +0.0149 | +0.41% | 8.5% | not supported |
+| AssetGrowth | 12mo | −0.0165 | −1.64 | −0.0723 | +0.0401 | +1.61% | 8.5% | not supported |
+| ShareIss1Y | 6mo | +0.0045 | +0.40 | −0.0399 | +0.0495 | −1.19% | 5.2% | not supported |
+| ShareIss1Y | 12mo | +0.0237 | +2.32 | −0.0191 | +0.0671 | −2.67% | 5.2% | not supported |
+| **Investment** | 6mo | **+0.0540** | **+5.90** | +0.0582 | +0.0498 | **+1.60%** | 1.2% | **SUPPORTED** |
+| **Investment** | 12mo | **+0.0602** | **+6.70** | +0.0737 | +0.0465 | **+0.90%** | 1.2% | **SUPPORTED** |
+
+**Turnover: every predictor came in between 1.2% and 8.5% one-sided monthly**, far inside
+the 50% cap. The low-turnover screen was therefore never binding — the selection rule
+(annual/quarterly accounting inputs only) had already done that work. No predictor was
+excluded on turnover grounds.
+
+**8 of 10 fail, and mostly for the same reason as June's growth components:** BM, EP, CF,
+OperProf and ShareIss1Y all flip sign between the two PIT sub-periods (H1 negative, H2
+positive) — regime artifacts, exactly the pattern PROMOTION_CRITERIA.md's sign-consistency
+rule exists to reject. Note BM@12mo would have looked like a **+8.04% OOS quintile spread**
+if judged on spread alone; its sub-period signs are −0.1010 → +0.0960. That is the single
+clearest illustration in this study of why the three-part bar is not redundant.
+
+## The pre-committed falsifier fires
+
+| horizon | Valuation alone | Composite (Investment + NOA + Valuation) | |
+|---|---|---|---|
+| 6mo | +2.48% | **+3.28%** | composite wins |
+| **12mo** | **+5.93%** | +4.75% | **composite loses** |
+
+The registration fixed the falsifier at **12mo**. The composite loses there, so:
+
+> **THE LANE 1 COMPOSITE SPEC SHIPS AS VALUATION-ONLY.**
+
+The 6mo win is recorded and is **not** grounds to override it. The horizon was fixed in
+advance specifically so that this choice could not be made after seeing which way it went.
+`Investment` and `NOA` are nominated for future work — both are sign-consistent, both clear
+the Bonferroni-adjusted bar, both are very low turnover — but they do not enter the
+composite on this evidence.
+
+An implementation note worth recording: the first cut of `milestone_d.py` declared victory
+whenever the composite won at *any* horizon, which would have shipped the composite on the
+6mo result. That is a misreading of the registration, and it was corrected to test 12mo
+specifically before the verdict was accepted.
+
+## Deliverable
+
+`LANE1_COMPOSITE_SPEC.md` — candidate spec, Valuation-only, carrying the Milestone C
+standing caveat. Promotion still runs through `PROMOTION_CRITERIA.md`.
+
+Note this **confirms the current live configuration rather than changing it**: LT baseline
+membership is already Valuation-100 (`weights_baseline.json`, v2-baseline). Lane 1's decade
+PIT programme has now tested 6 LT components at two resolutions and 10 CZ predictors — 26
+component-horizon hypotheses in total — and has not found anything that earns a place
+alongside Valuation.
+
+---
+
+# SESSION SUMMARY
+
+| Milestone | Outcome |
+|---|---|
+| **Ark gate** | ✅ both files present on NAS — proceeded |
+| **A** — corpus audit + port + reproduction | ✅ **PASSED**, all 12 assertions inside tolerance |
+| **B** — quarterly-TTM re-test | ⛔ **KILL MET** — growth components dropped permanently |
+| **C** — survivorship bounding | ⛔ **KILL MET** under adverse placement; escalated; ran under caveat |
+| **D** — CZ predictor sweep | ✅ ran; **pre-committed falsifier fired** → Valuation-only |
+
+**Net scientific content: three negatives and one confirmation.** The growth components are
+closed. The survivorship premium is materially smaller than the June headline and cannot be
+resolved without paid data. Eight of ten CZ predictors fail on sub-period sign consistency.
+Valuation survives everything, which is what the live baseline already assumes.
+
+## Corrections made during this session
+
+1. Session was not on mill (brief said it was) — escalated, drove mill over SSH.
+2. mill had **no Python 3.11** — the only two interpreters present were the two the brief
+   forbids. Provisioned 3.11.15 via `uv`, user-space.
+3. `~/.ssh/config` tailnet alias for mill is circular; only the LAN path works.
+4. **Self-correction:** claimed 27 of the 46 missing names were recoverable gather
+   failures. Attempted the recovery Kelton authorised; SEC + Yahoo both refuted it. All 46
+   are genuine exits, exposure is 9.7% not 4.0%, and the picture is worse than I first
+   reported. Recommendation withdrawn.
+5. **Self-correction:** Milestone C's phantom placement initially spread by score *value*
+   rather than by *rank*, inflating a spread to +15.34% where the honest figure is +3.71%.
+6. **Self-correction:** Milestone D's verdict logic initially accepted a win at any
+   horizon; corrected to the pre-registered 12mo test, which reverses the outcome.
