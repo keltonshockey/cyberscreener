@@ -19,6 +19,7 @@ from .pit import (CAPEX, CASH, DEBT_CUR, DEBT_LT, EPS, GROSS, OCF, OPINC, REV,
                   SHARES, annual_facts, as_of_annual, as_of_instant,
                   instant_facts, prior_annual)
 from .prices import fwd_return, load_prices, price_row
+from .quarterly import duration_facts, ttm, ttm_prior
 from .scoring import score_lt
 from .stats import MIN_CROSS_SECTION, spearman, tstat
 
@@ -124,14 +125,23 @@ class Panel:
                     ic_h1=m1, ic_h2=m2, same_sign=same_sign, sign_consistent=verdict)
 
 
-def build_panel(corpus_root: str = CORPUS_ROOT, snaps=None, verbose: bool = False) -> Panel:
+def build_panel(corpus_root: str = CORPUS_ROOT, snaps=None, verbose: bool = False,
+                resolution: str = "annual") -> Panel:
     """
     Build the PIT panel from the corpus. Read-only throughout.
+
+    `resolution` selects the fundamental cadence:
+      "annual"    — as-filed FY / 10-K figures. June's choice, and the ONLY
+                    setting under which the Milestone A gate reproduces.
+      "quarterly" — stitched quarterly-TTM (Milestone B). Growth components
+                    update ~4x/yr instead of ~1x/yr.
 
     Names without a usable price series are collected into `delisted_no_price`
     rather than silently skipped — that list IS the survivorship gap Milestone C
     has to bound.
     """
+    if resolution not in ("annual", "quarterly"):
+        raise ValueError(f"unknown resolution {resolution!r}")
     snaps = snaps or month_starts()
     edgar = os.path.join(corpus_root, "edgar")
     prices_dir = os.path.join(corpus_root, "prices")
@@ -170,6 +180,13 @@ def build_panel(corpus_root: str = CORPUS_ROOT, snaps=None, verbose: bool = Fals
         ocf_a = annual_facts(g, OCF)
         cap_a = annual_facts(g, CAPEX)
         eps_a = annual_facts(g, EPS)
+        if resolution == "quarterly":
+            rev_q = duration_facts(g, REV)
+            op_q = duration_facts(g, OPINC)
+            gp_q = duration_facts(g, GROSS)
+            ocf_q = duration_facts(g, OCF)
+            cap_q = duration_facts(g, CAPEX)
+            eps_q = duration_facts(g, EPS)
         sh_i = instant_facts(gdei, SHARES)
         dltf = instant_facts(g, DEBT_LT)
         dcurf = instant_facts(g, DEBT_CUR)
@@ -185,8 +202,12 @@ def build_panel(corpus_root: str = CORPUS_ROOT, snaps=None, verbose: bool = Fals
             if f6 is None and f12 is None:
                 continue
             row = dict(pr)
-            row.update(fundamentals_as_of(D, rev_a, op_a, gp_a, ocf_a, cap_a, eps_a,
-                                          sh_i, dltf, dcurf, cashf, row["price"]))
+            if resolution == "annual":
+                row.update(fundamentals_as_of(D, rev_a, op_a, gp_a, ocf_a, cap_a, eps_a,
+                                              sh_i, dltf, dcurf, cashf, row["price"]))
+            else:
+                row.update(fundamentals_ttm_as_of(D, rev_q, op_q, gp_q, ocf_q, cap_q, eps_q,
+                                                  sh_i, dltf, dcurf, cashf, row["price"]))
             entries[D].append((t, score_lt(row), f6, f12))
 
         if verbose:
@@ -235,6 +256,59 @@ def fundamentals_as_of(D, rev_a, op_a, gp_a, ocf_a, cap_a, eps_a,
         out["ev_revenue"] = (price * shares + debt - cash) / rev_val
 
     eps = as_of_annual(eps_a, D)
+    if eps:
+        out["eps"] = eps[1]
+        if eps[1] and eps[1] > 0:
+            out["pe_ratio"] = price / eps[1]
+    return out
+
+
+def fundamentals_ttm_as_of(D, rev_q, op_q, gp_q, ocf_q, cap_q, eps_q,
+                           sh_i, dltf, dcurf, cashf, price) -> dict:
+    """
+    Quarterly-TTM counterpart of `fundamentals_as_of` (Milestone B).
+
+    Identical field semantics and identical PIT discipline — only the cadence
+    changes, so any difference in the resulting ICs is attributable to
+    resolution rather than to a different measurement.
+
+    Margins and FCF are computed against the SAME TTM window that produced
+    revenue (`as_of_end=rev_end`), never against a window that happens to
+    extend further. Mixing windows would put a numerator and denominator from
+    different periods into one ratio.
+    """
+    out: dict = {}
+    rev = ttm(rev_q, D)
+    if not rev:
+        return out
+    rev_end, rev_ttm = rev
+    if not rev_ttm:
+        return out
+
+    prior = ttm_prior(rev_q, D, rev_end)
+    if prior:
+        out["revenue_growth_pct"] = (rev_ttm / prior - 1) * 100
+
+    op = ttm(op_q, D, as_of_end=rev_end)
+    if op:
+        out["operating_margin_pct"] = op[1] / rev_ttm * 100
+
+    gp = ttm(gp_q, D, as_of_end=rev_end)
+    if gp:
+        out["gross_margin_pct"] = gp[1] / rev_ttm * 100
+
+    ocf = ttm(ocf_q, D, as_of_end=rev_end)
+    if ocf:
+        cap = ttm(cap_q, D, as_of_end=rev_end)
+        out["fcf_margin_pct"] = (ocf[1] - (cap[1] if cap else 0)) / rev_ttm * 100
+
+    shares = as_of_instant(sh_i, D)
+    if shares and shares > 0:
+        debt = (as_of_instant(dltf, D) or 0) + (as_of_instant(dcurf, D) or 0)
+        cash = as_of_instant(cashf, D) or 0
+        out["ev_revenue"] = (price * shares + debt - cash) / rev_ttm
+
+    eps = ttm(eps_q, D, as_of_end=rev_end)
     if eps:
         out["eps"] = eps[1]
         if eps[1] and eps[1] > 0:
