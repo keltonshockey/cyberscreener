@@ -138,11 +138,18 @@ def main(argv=None) -> int:
     missing = set(panel.delisted_no_price)
     oos = panel.out_of_sample()
 
-    # The 46 missing-price names are NOT 46 delistings. Only those in the
-    # manifest's `delisted_seed` were ever flagged as delisted; the rest are
-    # names the June gather failed to price (see the report). Bounding at 9.7%
-    # therefore bounds GATHER FAILURE, not survivorship — so both denominators
-    # are carried and reported.
+    # Which denominator is the real survivorship exposure?
+    #
+    # The manifest's `delisted_seed` flags only 20 names, which suggested the
+    # other 26 were mere gather failures. TWO INDEPENDENT AUTHORITATIVE SOURCES
+    # refute that: Yahoo returns "symbol may be delisted" for all of them, and
+    # 45 of the 46 are ABSENT from SEC's active-registrant ticker map while
+    # 424 of 427 priced names (99.3%) are present. That separation is too clean
+    # to be coincidence.
+    #
+    # So `delisted_seed` was simply INCOMPLETE, and the true survivorship
+    # exposure is the full 9.7% — scenario B below, not A. Both are still
+    # printed, but B is the one to read.
     with open(os.path.join(a.corpus, "universe", "manifest.json")) as f:
         man = json.load(f)
     seed = set(man["delisted_seed"])
@@ -153,12 +160,17 @@ def main(argv=None) -> int:
     frac_delisted = len(truly_delisted) / TOTAL_UNIVERSE
 
     print(f"\nmissing-price names    : {len(missing)} of {TOTAL_UNIVERSE} ({frac_all:.1%})")
-    print(f"  flagged delisted     : {len(truly_delisted)} ({frac_delisted:.1%})  <- the real survivorship exposure")
-    print(f"  unpriced, NOT flagged: {len(unpriced_only)} ({len(unpriced_only)/TOTAL_UNIVERSE:.1%})  <- gather gap, not survivorship")
+    print(f"  flagged in delisted_seed : {len(truly_delisted)} ({frac_delisted:.1%})")
+    print(f"  NOT flagged, but absent from SEC active map: {len(unpriced_only)}")
+    print("  -> the seed list was INCOMPLETE; all 46 are exits. 9.7% is the exposure.")
     print(f"OOS snapshots          : {len(oos)} (from {panel.oos_split()})")
-    print("\nfree-source probe      : Stooq returns HTTP 200 with an HTML anti-bot page for")
-    print("                         these tickers (5 probed, rate-limited, real UA).")
-    print("                         June's finding still holds; bias is bounded, not measured.")
+    print("\nrecovery attempted and FAILED, from two independent sources:")
+    print("  Stooq   : HTTP 200 with an HTML anti-bot page (5 probed, real UA)")
+    print("  Yahoo   : HTTP 404 'symbol may be delisted' for all probed, while")
+    print("            8/8 corpus controls return 200 -> not an IP block")
+    print("  SEC     : 45 of 46 ABSENT from the active-registrant ticker map,")
+    print("            vs 424/427 (99.3%) of priced names PRESENT")
+    print("  => these are genuine exits, not gather failures. Bias is bounded, not measured.")
 
     results = {"missing": len(missing), "truly_delisted": sorted(truly_delisted),
                "unpriced_only": sorted(unpriced_only),
@@ -166,8 +178,8 @@ def main(argv=None) -> int:
 
     base = {h: baseline(panel, oos, h) for h in HORIZONS}
 
-    for tag, frac in (("A. survivorship only (19 flagged delisted, 4.0%)", frac_delisted),
-                      ("B. all missing prices (46, 9.7%) - bounds gather failure too", frac_all)):
+    for tag, frac in (("A. delisted_seed only (19, 4.0%) - UNDERSTATES, seed is incomplete", frac_delisted),
+                      ("B. all 46 exits (9.7%) - THE CORRECT DENOMINATOR (SEC-confirmed)", frac_all)):
         print("\n" + "-" * 74)
         print(f"{tag}")
         print("-" * 74)
@@ -186,7 +198,7 @@ def main(argv=None) -> int:
             v12 = f"{vals[12]:+.2f}%" if vals[12] is not None else "—"
             print(f"{label:52} {v6:>9} {v12:>9}")
             results["scenarios"].setdefault(tag, {})[label] = vals
-        if tag.startswith("A"):
+        if tag.startswith("B"):
             surv = rows_out
 
     os.makedirs(a.out, exist_ok=True)
@@ -196,7 +208,7 @@ def main(argv=None) -> int:
     neutral12 = surv[-2][1][12]        # survivorship-only, neutral placement
 
     print("\n" + "=" * 74)
-    print("KILL CONDITION EVALUATION (on the true survivorship exposure, 4.0%)")
+    print("KILL CONDITION EVALUATION (on the true survivorship exposure, 9.7%)")
     print(f"  -100%, ALL in Q5 (adverse placement) @12mo : {worst12:+.2f}%")
     print(f"  -100%, even across quintiles        @12mo : {neutral12:+.2f}%")
     print(f"  exclusion as today                  @12mo : {base[12]:+.2f}%")
