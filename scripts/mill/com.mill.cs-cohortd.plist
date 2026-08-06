@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Cohort D paper logger (SESSION-R4).
+
+     STAGED - NOT LOADED. Installing it is a supervised human step; see the
+     runbook block in RESULT_R4_COHORT_D. No code session loads launchd jobs.
+
+       cp scripts/mill/com.mill.cs-cohortd.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.mill.cs-cohortd.plist
+
+     Runs daily at 16:45 mill-local, after the US close so the settlement price
+     for an expiry date is final. The job is calendar-aware and idempotent: it
+     acts only on the first trading day of a month (entry) or when an open
+     position's expiry has arrived (settlement), and re-running it is a no-op.
+
+     Requires a Python 3.11 venv at ~/.venvs/cohortd. Writes only
+     ~/cs-research/cohortD.db - it never opens cyberscreener.db.
+
+     Network: opens no listener. Outbound only - yfinance for SPY data and
+     Pushover for notification, both over existing paths. The droplet is
+     never contacted. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mill.cs-cohortd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>$HOME/cyberscreener/scripts/mill/cohortd_daily.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>16</integer>
+        <key>Minute</key>
+        <integer>45</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/tmp/cs-cohortd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/cs-cohortd.err</string>
+</dict>
+</plist>
