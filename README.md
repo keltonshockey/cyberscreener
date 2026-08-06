@@ -38,6 +38,10 @@ python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 
+# Tests (adds pytest + pytest-asyncio on top of the runtime deps)
+pip install -r requirements-dev.txt
+cd .. && make test
+
 # Frontend
 cd frontend
 npm install

@@ -4,6 +4,10 @@
 # DB). It auto-detects the venv: api/venv (MacBook), ./venv (droplet layout),
 # else falls back to python3 (mill).
 #
+# The venv it finds must have api/requirements-dev.txt installed, not just
+# api/requirements.txt: pytest and pytest-asyncio live there, and pytest.ini
+# sets asyncio_mode = auto, so the async tests error without them.
+#
 # `make install-hooks` points git at scripts/git-hooks so the suite runs as a
 # pre-push gate on this clone (opt-in, per clone).
 
