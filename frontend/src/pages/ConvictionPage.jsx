@@ -30,7 +30,6 @@ import {
 import {
   ltBreakdown, optBreakdown, rowDirection, convictionScore, trendSeries,
 } from '../utils/scoring';
-import { NarrativeBlurb } from '../components/NarrativeBlurb';
 import { applyLayerView, composableLayers } from '../utils/layers';
 import { tagsFor, tagCounts, SECTOR_TAGS } from '../utils/sectors';
 import { classifySignals } from '../utils/signals';
@@ -505,9 +504,6 @@ function DetailCard({ row, hist, signals, stack, chartData, isWatched, onWatch, 
         <BreakdownPanel items={ltBreakdown(row)} title="LT score breakdown" accent="var(--gold)" />
         <BreakdownPanel items={optBreakdown(row)} title="Opt score breakdown" accent="var(--tyrian)" />
       </div>
-
-      {/* Narrative "Why this?" — lazy on expand; LT-first for the value forum. */}
-      <NarrativeBlurb key={row.ticker} ticker={row.ticker} prefer="lt" />
 
       {/* ── Signals (relevance-gated) ── */}
       <div className={styles.sigH}>

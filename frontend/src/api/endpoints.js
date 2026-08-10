@@ -87,11 +87,9 @@ export const removeWatchlistTicker = (ticker) => api(`/watchlist/${ticker}`, { m
 export const analyzePlaysTicker = (ticker) => api(`/plays/${ticker}/analyze`, { method: 'POST' });
 export const fetchAIStatus = () => api('/ai/status');
 
-// ── Narrative (per-ticker LT/ST story panel) ──
-// Returns the story payload on 200, or { status: "generating" } on 202 while
-// the mill-side pipeline drafts it. api() treats 2xx as success, so the 202
-// body falls through unchanged.
-export const fetchNarrative = (ticker) => api(`/narrative/${ticker}`);
+// The per-ticker narrative helper (fetchNarrative) was retired frontend-only
+// in V3C (D3, 2026-08-10). The backend /narrative/{ticker} endpoint and the
+// mill pipeline stay live and dormant; reintroduce a helper here to revive.
 
 // ── UI config (runtime feature flags, e.g. the world pause) ──
 export const fetchUiConfig = () => api('/config/ui');

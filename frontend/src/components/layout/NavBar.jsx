@@ -1,14 +1,15 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { Landmark, Scroll, Zap, Library, Globe, Play, RefreshCw, Scale } from '../ui/icons';
+import { Landmark, Globe, Play, RefreshCw, Scale, FlaskConical } from '../ui/icons';
 import styles from './NavBar.module.css';
 
+// V3C (D2): Forum/Pactum/Archive left primary nav after the pre-registered
+// gate FAILED its 2026-08-02 read. One "Experimental" entry replaces them;
+// the pages live on under /experimental/... with the gate-verdict banner.
 const NAV_ITEMS = [
   { to: '/', label: 'Watchlist', sub: 'monthly valuation', Icon: Scale },
   { to: '/basilica', label: 'Basilica', sub: 'today', Icon: Landmark },
-  { to: '/conviction', label: 'Forum', sub: 'long-term value', Icon: Scroll },
-  { to: '/pactum', label: 'Pactum', sub: 'tactical options', Icon: Zap },
-  { to: '/archive', label: 'Archive', sub: 'backtest', Icon: Library },
+  { to: '/experimental', label: 'Experimental', sub: 'gated surfaces', Icon: FlaskConical },
   { to: '/world', label: 'World', sub: 'the city', Icon: Globe },
 ];
 

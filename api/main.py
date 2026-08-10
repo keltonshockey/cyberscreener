@@ -677,9 +677,43 @@ def _compute_scan_stale(scan_age_seconds, now_utc):
     )
 
 
+def _resolve_version(app_dir=None):
+    """Resolve the running code version ONCE at process start (V3C).
+
+    Order: short git SHA of the checkout -> a VERSION file (api/VERSION or
+    repo-root VERSION -- the deploy-time escape hatch for checkouts without
+    .git) -> the old static fallback. Cached in APP_VERSION below so /health
+    never shells out per-request. Subprocess runs with a timeout and no shell.
+    """
+    import os, subprocess
+    here = app_dir or os.path.dirname(os.path.abspath(__file__))
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=here, capture_output=True, timeout=3, check=True,
+        ).stdout.decode().strip()
+        if out:
+            return out
+    except Exception:
+        pass
+    for cand in (os.path.join(here, "VERSION"),
+                 os.path.join(os.path.dirname(here), "VERSION")):
+        try:
+            with open(cand, encoding="utf-8") as fh:
+                txt = fh.read().strip()
+            if txt:
+                return txt
+        except OSError:
+            pass
+    return "unknown"
+
+
+APP_VERSION = _resolve_version()
+
+
 @app.get("/health")
 def health():
-    import os, subprocess
+    import os
     from datetime import datetime, timezone
 
     last_scan_utc = None
@@ -710,16 +744,6 @@ def health():
     except Exception:
         pass
 
-    version = "unknown"
-    try:
-        version = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
-            stderr=subprocess.DEVNULL,
-        ).decode().strip()
-    except Exception:
-        pass
-
     return {
         "status": "ok",
         "last_scan_utc": last_scan_utc,
@@ -729,7 +753,7 @@ def health():
         "in_scan_window": _scan_window_active(datetime.now(timezone.utc)),
         "db_size_mb": db_size_mb,
         "droplet": "64.23.150.209",
-        "version": version,
+        "version": APP_VERSION,
         "scans": get_scan_count(),
     }
 

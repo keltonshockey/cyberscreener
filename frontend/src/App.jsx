@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { Header } from './components/layout/Header';
 import { NavBar } from './components/layout/NavBar';
@@ -18,6 +18,8 @@ import { ConvictionPage } from './pages/ConvictionPage';
 import { PactumPage } from './pages/PactumPage';
 import { ArchivePage } from './pages/ArchivePage';
 import { TickerPage } from './pages/TickerPage';
+import { ExperimentalIndexPage } from './pages/ExperimentalIndexPage';
+import { ExperimentalBanner } from './components/ExperimentalBanner';
 
 // Lazy-load World page (includes Phaser ~1MB) — only downloaded when user visits /world
 const WorldPage = lazy(() => import('./pages/WorldPage').then(m => ({ default: m.WorldPage })));
@@ -27,6 +29,14 @@ import { getStoredTz } from './utils/formatters';
 // World PAUSE notice (SESSION-SLIM-SCOPE): shown on a direct /world visit
 // while the world is paused. Source stays in the repo; flip WORLD_ENABLED=1
 // on the server to revive — no rebuild.
+// Old top-level play-surface routes redirect to their /experimental/ homes
+// (SESSION-V3C D2 demotion). Router state (e.g. Pactum's default ticker) is
+// forwarded so deep links from widgets keep working.
+function LegacyRedirect({ to }) {
+  const location = useLocation();
+  return <Navigate to={to} replace state={location.state} />;
+}
+
 function WorldPaused() {
   return (
     <div style={{ textAlign: 'center', padding: 80, color: 'var(--color-text-secondary)' }}>
@@ -86,7 +96,7 @@ export function App() {
 
   // Load backtest lazily when Archive page is visited
   useEffect(() => {
-    if (location.pathname === '/archive' && !backtest) {
+    if (location.pathname === '/experimental/archive' && !backtest) {
       fetchBacktest(180, 30).then(d => { if (d) setBacktest(d); });
     }
   }, [location.pathname, backtest]);
@@ -165,8 +175,7 @@ export function App() {
       <main style={{ flex: 1, padding: '20px 24px', maxWidth: 1400, width: '100%', margin: '0 auto' }}>
         <Routes>
           {/* v3: the monthly Valuation Watchlist IS the front page; the old
-              overview keeps its full self at /basilica (demotion of anything
-              else is deliberately out of scope here -- session V3c). */}
+              overview keeps its full self at /basilica. */}
           <Route
             path="/"
             element={<WatchlistPage />}
@@ -176,21 +185,31 @@ export function App() {
             element={<BasilicaPage stats={stats} latest={latest} tz={tz} />}
           />
           <Route
-            path="/conviction"
-            element={<ConvictionPage latest={latest} />}
-          />
-          <Route
-            path="/pactum"
-            element={<PactumPage latest={latest} defaultTicker={pactumTicker} tz={tz} />}
-          />
-          <Route
             path="/ticker/:symbol"
             element={<TickerPage latest={latest} tz={tz} />}
           />
+
+          {/* v3c: play/conviction surfaces demoted to /experimental after the
+              pre-registered gate FAILED its 2026-08-02 read (D2). Pages stay
+              fully reachable; each carries the shared gate-verdict banner. */}
+          <Route path="/experimental" element={<ExperimentalIndexPage />} />
           <Route
-            path="/archive"
-            element={<ArchivePage backtest={backtest} tz={tz} />}
+            path="/experimental/conviction"
+            element={<><ExperimentalBanner style={{ marginBottom: 16 }} /><ConvictionPage latest={latest} /></>}
           />
+          <Route
+            path="/experimental/pactum"
+            element={<><ExperimentalBanner style={{ marginBottom: 16 }} /><PactumPage latest={latest} defaultTicker={pactumTicker} tz={tz} /></>}
+          />
+          <Route
+            path="/experimental/archive"
+            element={<><ExperimentalBanner style={{ marginBottom: 16 }} /><ArchivePage backtest={backtest} tz={tz} /></>}
+          />
+
+          {/* Old top-level routes: client-side redirects, no dead links. */}
+          <Route path="/conviction" element={<LegacyRedirect to="/experimental/conviction" />} />
+          <Route path="/pactum" element={<LegacyRedirect to="/experimental/pactum" />} />
+          <Route path="/archive" element={<LegacyRedirect to="/experimental/archive" />} />
           <Route
             path="/world"
             element={

@@ -35,3 +35,47 @@ def test_health_droplet_value():
     response = client.get("/health")
     data = response.json()
     assert data["droplet"] == "64.23.150.209"
+
+
+# ── V3C: /health version resolves the real git SHA at process start ──
+
+def test_health_version_is_nonempty_string():
+    data = client.get("/health").json()
+    assert isinstance(data["version"], str)
+    assert data["version"].strip()
+
+
+def test_health_version_is_cached_not_per_request(monkeypatch):
+    """APP_VERSION is resolved once at import; /health must not shell out."""
+    import subprocess
+    import main as main_mod
+
+    def boom(*args, **kwargs):
+        raise AssertionError("/health called subprocess at request time")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    data = client.get("/health").json()
+    assert data["version"] == main_mod.APP_VERSION
+    assert data["version"].strip()
+
+
+def test_resolver_falls_back_cleanly_when_git_unavailable(monkeypatch, tmp_path):
+    """Subprocess failure -> VERSION file -> old constant; never an exception."""
+    import subprocess
+    from main import _resolve_version
+
+    def boom(*args, **kwargs):
+        raise FileNotFoundError("git: command not found")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+
+    # No VERSION file anywhere -> the old static fallback.
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert _resolve_version(app_dir=str(empty)) == "unknown"
+
+    # VERSION file present (deploy-time escape hatch) -> its contents.
+    vdir = tmp_path / "app"
+    vdir.mkdir()
+    (vdir / "VERSION").write_text("v3c-deploy-stamp\n", encoding="utf-8")
+    assert _resolve_version(app_dir=str(vdir)) == "v3c-deploy-stamp"
