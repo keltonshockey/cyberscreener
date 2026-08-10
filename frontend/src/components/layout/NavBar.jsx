@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { Landmark, Scroll, Zap, Library, Globe, Play, RefreshCw } from '../ui/icons';
+import { Landmark, Scroll, Zap, Library, Globe, Scale, Play, RefreshCw } from '../ui/icons';
 import styles from './NavBar.module.css';
 
 const NAV_ITEMS = [
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/conviction', label: 'Forum', sub: 'long-term value', Icon: Scroll },
   { to: '/pactum', label: 'Pactum', sub: 'tactical options', Icon: Zap },
   { to: '/archive', label: 'Archive', sub: 'backtest', Icon: Library },
+  { to: '/evidence', label: 'Evidence', sub: 'the forward test', Icon: Scale },
   { to: '/world', label: 'World', sub: 'the city', Icon: Globe },
 ];
 
