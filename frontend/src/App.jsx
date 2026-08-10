@@ -16,6 +16,7 @@ import { BasilicaPage } from './pages/BasilicaPage';
 import { ConvictionPage } from './pages/ConvictionPage';
 import { PactumPage } from './pages/PactumPage';
 import { ArchivePage } from './pages/ArchivePage';
+import { EvidencePage } from './pages/EvidencePage';
 import { TickerPage } from './pages/TickerPage';
 
 // Lazy-load World page (includes Phaser ~1MB) — only downloaded when user visits /world
@@ -182,6 +183,10 @@ export function App() {
           <Route
             path="/archive"
             element={<ArchivePage backtest={backtest} tz={tz} />}
+          />
+          <Route
+            path="/evidence"
+            element={<EvidencePage />}
           />
           <Route
             path="/world"

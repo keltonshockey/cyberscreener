@@ -91,6 +91,10 @@ export const fetchAIStatus = () => api('/ai/status');
 // body falls through unchanged.
 export const fetchNarrative = (ticker) => api(`/narrative/${ticker}`);
 
+// ── Evidence (pre-registered forward-test artifacts, served from files) ──
+export const fetchEvidenceLatest = () => api('/evidence/latest');
+export const fetchEvidenceHistory = () => api('/evidence/history');
+
 // ── UI config (runtime feature flags, e.g. the world pause) ──
 export const fetchUiConfig = () => api('/config/ui');
 
