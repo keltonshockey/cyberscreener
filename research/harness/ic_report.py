@@ -93,6 +93,12 @@ def _load_read_door():
 
 connect_ro = _load_read_door().connect_ro
 
+# E2 (PREREG_E2_DECAY_TELEMETRY.md): the sign-persistence statistic lives in its
+# own module so the PIT-primary tool (research/lane1/e2_persistence.py) and this
+# weekly harness share ONE implementation of the registered test.
+from .persistence import (  # noqa: E402
+    persistence_test, month_key, NW_LAG, T_BAR as PERS_T_BAR)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # The series under test. Order is fixed so reports and the golden file are
 # stable across runs.
@@ -132,6 +138,20 @@ T_BAR = 3.0
 # panel is bucketed in Eastern time before the weekday filter is applied.
 MARKET_TZ = "America/New_York"
 
+# -- E2 constants (PREREG_E2_DECAY_TELEMETRY.md) ------------------------------
+# Regime proxy, exactly as registered: state = HIGH when the trailing 21-day
+# realized vol of the universe median daily return exceeds its trailing 252-day
+# median, else LOW. Descriptive telemetry ONLY - no hypothesis, no bar.
+REGIME_VOL_WINDOW = 21
+REGIME_BASE_WINDOW = 252
+# Honesty floor: with fewer than this many days of vol history behind the
+# median baseline the tagging is INSUFFICIENT and NOTHING is reported - the
+# live panel is ~6 months old and a "252-day median" on it would be fabricated.
+REGIME_BASE_MIN_DAYS = 126
+# A month needs at least this many usable daily ICs to yield a monthly IC in
+# the accruing sign-persistence series.
+MONTH_MIN_IC_DAYS = 5
+
 
 @dataclass
 class SeriesResult:
@@ -148,6 +168,19 @@ class SeriesResult:
     same_sign: bool
     verdict: str
     note: str = ""
+    # E2 decay telemetry: OLS slope of the daily IC series vs time (per
+    # calendar day) with a 95% CI. Telemetry only - no verdict semantics.
+    decay_slope: float = float("nan")
+    decay_ci_lo: float = float("nan")
+    decay_ci_hi: float = float("nan")
+    # E2 accruing sign-persistence conditioner (secondary, live panel). The
+    # kill condition is decided ONLY by the PIT-primary run on mill.
+    pers_n_months: int = 0
+    pers_n_pairs: int = 0
+    pers_beta: float = float("nan")
+    pers_t: float = float("nan")
+    pers_verdict: str = "INSUFFICIENT"
+    pers_note: str = ""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -320,14 +353,155 @@ def evaluate(ics: pd.Series, series: str, horizon: int, n_obs: int, mid_date) ->
     )
 
 
-def run_analysis(panel: pd.DataFrame, horizons) -> list[SeriesResult]:
+# -----------------------------------------------------------------------------
+# E2 additions - decay slopes, regime tagging, accruing sign-persistence.
+# All three are registered in PREREG_E2_DECAY_TELEMETRY.md. None of them touch
+# the existing verdict semantics, and none of them feed scoring anywhere.
+# -----------------------------------------------------------------------------
+def decay_slope_ci(ics: pd.Series) -> tuple[float, float, float]:
+    """
+    OLS slope of the daily IC series vs time over the window, with 95% CI.
+
+    Registered as item 1 (decay telemetry): "rolling mean-IC trend (OLS slope
+    of the daily IC series over a trailing window, with CI)". Units are IC per
+    CALENDAR day. The CI is the plain OLS 95% interval (slope +/- 1.96*se) -
+    the prereg registers an OLS slope with a CI and attaches no bar or verdict
+    to it, so no autocorrelation correction is layered on top.
+    Returns (nan, nan, nan) when fewer than 3 IC days exist or time has no
+    spread - a slope on nothing is not reported.
+    """
+    n = len(ics)
+    if n < 3:
+        return float("nan"), float("nan"), float("nan")
+    x = np.array([(d - ics.index[0]).days for d in ics.index], dtype=float)
+    y = ics.to_numpy(dtype=float)
+    sxx = float(((x - x.mean()) ** 2).sum())
+    if not sxx > 0:
+        return float("nan"), float("nan"), float("nan")
+    slope = float(((x - x.mean()) * (y - y.mean())).sum() / sxx)
+    resid = y - (y.mean() + slope * (x - x.mean()))
+    sigma2 = float((resid ** 2).sum()) / (n - 2)
+    se = math.sqrt(sigma2 / sxx) if sigma2 > 0 else 0.0
+    return slope, slope - 1.96 * se, slope + 1.96 * se
+
+
+def monthly_ic_series(ics: pd.Series) -> tuple[list, list]:
+    """
+    Aggregate the daily IC series to MONTHLY resolution for the accruing
+    sign-persistence secondary: monthly IC = mean of the usable daily ICs in
+    the calendar month; months with fewer than MONTH_MIN_IC_DAYS usable days
+    are dropped rather than represented by a near-empty average. (The PIT
+    primary does not use this aggregation - its monthly ICs are the lane1
+    engine's per-snapshot ICs.)
+    """
+    if ics.empty:
+        return [], []
+    grouped: dict = {}
+    for d, v in ics.items():
+        grouped.setdefault(month_key(d), []).append(float(v))
+    months, vals = [], []
+    for m in sorted(grouped):
+        if len(grouped[m]) >= MONTH_MIN_IC_DAYS:
+            months.append(m)
+            vals.append(sum(grouped[m]) / len(grouped[m]))
+    return months, vals
+
+
+def compute_ic_map(panel: pd.DataFrame, horizons) -> dict:
+    """Daily IC series for every (series, horizon) present in the panel."""
+    if panel.empty:
+        return {}
+    fwds = forward_returns(panel, horizons)
+    return {(s, h): daily_ic(panel, fwds[h], s, h)
+            for h in horizons for s in SERIES if s in panel.columns}
+
+
+def universe_median_return(panel: pd.DataFrame) -> pd.Series:
+    """Daily return of the universe median: per-ticker daily returns from the
+    panel's own prices, median across the cross-section each day."""
+    wide = panel.pivot_table(index="date", columns="ticker", values="price",
+                             aggfunc="last").sort_index()
+    rets = wide / wide.shift(1) - 1.0
+    return rets.median(axis=1).dropna()
+
+
+def regime_states(panel: pd.DataFrame):
+    """
+    The registered 2-state volatility proxy (prereg item 2, verbatim): state =
+    HIGH when the trailing 21-day realized vol of the universe median daily
+    return exceeds its trailing 252-day median, else LOW. Both windows are
+    trailing and include the current day; the median baseline needs at least
+    REGIME_BASE_MIN_DAYS of vol history behind it.
+
+    Returns (states, "") where states maps date -> "HIGH"/"LOW", or
+    (None, reason) when the tagging is INSUFFICIENT - in which case NOTHING is
+    reported rather than fabricating states on a panel far younger than the
+    252-day baseline. Descriptive telemetry only; explicitly interim
+    scaffolding pending E1's jump-model regime states.
+    """
+    if panel.empty:
+        return None, "empty panel"
+    med = universe_median_return(panel)
+    vol = med.rolling(REGIME_VOL_WINDOW, min_periods=REGIME_VOL_WINDOW).std(ddof=1)
+    base = vol.rolling(REGIME_BASE_WINDOW,
+                       min_periods=REGIME_BASE_MIN_DAYS).median()
+    ok = vol.notna() & base.notna()
+    if not bool(ok.any()):
+        return None, (
+            f"fewer than {REGIME_BASE_MIN_DAYS} days of realized-vol history "
+            f"behind the trailing {REGIME_BASE_WINDOW}-day median baseline")
+    states = pd.Series(
+        np.where(vol[ok] > base[ok], "HIGH", "LOW"), index=vol.index[ok])
+    return states, ""
+
+
+def regime_table(panel: pd.DataFrame, horizons, ic_map=None) -> dict:
+    """
+    Per-component mean IC split by the registered proxy state, with n_days per
+    state. Returns {"status": "INSUFFICIENT", "reason": ...} when the tagging
+    cannot be established honestly, else {"status": "ok", rows, n_high, n_low,
+    n_untagged}.
+    """
+    states, reason = regime_states(panel)
+    if states is None:
+        return {"status": "INSUFFICIENT", "reason": reason}
+    if ic_map is None:
+        ic_map = compute_ic_map(panel, horizons)
+    high_dates = set(states.index[states == "HIGH"])
+    low_dates = set(states.index[states == "LOW"])
+    rows = []
+    for h in horizons:
+        for s in SERIES:
+            ics = ic_map.get((s, h))
+            if ics is None or ics.empty:
+                continue
+            hi = ics[[d in high_dates for d in ics.index]]
+            lo = ics[[d in low_dates for d in ics.index]]
+            rows.append({
+                "series": s, "horizon": h,
+                "ic_high": float(hi.mean()) if len(hi) else float("nan"),
+                "n_high": int(len(hi)),
+                "ic_low": float(lo.mean()) if len(lo) else float("nan"),
+                "n_low": int(len(lo)),
+            })
+    n_panel_days = int(panel["date"].nunique())
+    return {"status": "ok", "rows": rows,
+            "n_high": int((states == "HIGH").sum()),
+            "n_low": int((states == "LOW").sum()),
+            "n_untagged": n_panel_days - int(len(states))}
+
+
+def run_analysis(panel: pd.DataFrame, horizons, ic_map=None) -> list[SeriesResult]:
     if panel.empty:
         return []
-    fwds = forward_returns(panel, horizons)
+    if ic_map is None:
+        ic_map = compute_ic_map(panel, horizons)
     mid_date = window_midpoint(panel)
+    # Accruing sign-persistence Bonferroni family: every series x horizon this
+    # harness tests. Printed in the report (multiple-comparisons honesty).
+    pers_family_n = len(SERIES) * len(tuple(horizons))
     results = []
     for h in horizons:
-        fwd = fwds[h]
         for s in SERIES:
             if s not in panel.columns:
                 results.append(SeriesResult(
@@ -335,11 +509,23 @@ def run_analysis(panel: pd.DataFrame, horizons) -> list[SeriesResult]:
                     std_ic=float("nan"), t_raw=float("nan"), t_adj=float("nan"),
                     ic_h1=float("nan"), ic_h2=float("nan"), same_sign=False,
                     verdict="INSUFFICIENT", note="column absent from this DB",
+                    pers_note="column absent from this DB",
                 ))
                 continue
-            ics = daily_ic(panel, fwd, s, h)
+            ics = ic_map[(s, h)]
             n_obs = int(panel[s].notna().sum())
-            results.append(evaluate(ics, s, h, n_obs, mid_date))
+            res = evaluate(ics, s, h, n_obs, mid_date)
+            res.decay_slope, res.decay_ci_lo, res.decay_ci_hi = decay_slope_ci(ics)
+            months, vals = monthly_ic_series(ics)
+            pres = persistence_test(months, vals, component=f"{s}@{h}d",
+                                    bonferroni_n=pers_family_n)
+            res.pers_n_months = pres.n_months
+            res.pers_n_pairs = pres.n_pairs
+            res.pers_beta = pres.beta
+            res.pers_t = pres.t_nw
+            res.pers_verdict = pres.verdict
+            res.pers_note = pres.note
+            results.append(res)
     return results
 
 
@@ -410,7 +596,7 @@ def delta_paragraph(current: pd.DataFrame, prev_path: Path | None) -> str:
     return "".join(parts)
 
 
-def render_markdown(df: pd.DataFrame, meta: dict, delta: str) -> str:
+def render_markdown(df: pd.DataFrame, meta: dict, delta: str, regime: dict | None = None) -> str:
     lines = [
         f"# IC report — {meta['run_date']}",
         "",
@@ -469,6 +655,91 @@ def render_markdown(df: pd.DataFrame, meta: dict, delta: str) -> str:
                 f"{r.n_days} | {r.verdict} | {r.note or ''} |"
             )
         lines.append("")
+
+    def fmt(v, spec="{:+.4f}"):
+        return "-" if v is None or pd.isna(v) else spec.format(v)
+
+    # -- E2 section 1: decay slopes (telemetry) -------------------------------
+    lines += [
+        "## Decay slopes (telemetry)",
+        "",
+        "OLS slope of the daily IC series vs time over the window, with 95% CI,",
+        "in IC units per CALENDAR day (PREREG_E2_DECAY_TELEMETRY.md item 1).",
+        "Telemetry only - no verdict semantics change; nothing here feeds scoring.",
+        "",
+        "| series | horizon | slope/day | 95% CI | n_days |",
+        "|---|---|---|---|---|",
+    ]
+    if not df.empty:
+        for r in df.itertuples():
+            ci = ("-" if pd.isna(r.decay_ci_lo) else
+                  f"[{r.decay_ci_lo:+.5f}, {r.decay_ci_hi:+.5f}]")
+            lines.append(
+                f"| `{r.series}` | {r.horizon}d | {fmt(r.decay_slope, '{:+.5f}')} | "
+                f"{ci} | {r.n_days} |")
+    lines.append("")
+
+    # -- E2 section 2: regime-tagged IC (descriptive telemetry only) ----------
+    lines += [
+        "## Regime-tagged IC (descriptive telemetry - interim proxy pending E1 regime states)",
+        "",
+        "Registered 2-state proxy: HIGH when the trailing 21-day realized vol of",
+        "the universe median daily return exceeds its trailing 252-day median,",
+        "else LOW. NO hypothesis is tested on this split and no bar applies to it",
+        "(PREREG_E2_DECAY_TELEMETRY.md item 2).",
+        "",
+    ]
+    if regime is None or regime.get("status") != "ok":
+        reason = (regime or {}).get("reason", "not computed")
+        lines += [
+            f"**Regime tagging INSUFFICIENT: {reason}.** No states are reported;",
+            "tagging begins once the panel is old enough to carry the 252-day",
+            "median baseline honestly.",
+            "",
+        ]
+    else:
+        lines += [
+            f"State coverage: {regime['n_high']} HIGH days, {regime['n_low']} LOW days, "
+            f"{regime['n_untagged']} untagged (warm-up).",
+            "",
+            "| series | horizon | mean IC (HIGH) | n HIGH | mean IC (LOW) | n LOW |",
+            "|---|---|---|---|---|---|",
+        ]
+        for r in regime["rows"]:
+            lines.append(
+                f"| `{r['series']}` | {r['horizon']}d | {fmt(r['ic_high'])} | "
+                f"{r['n_high']} | {fmt(r['ic_low'])} | {r['n_low']} |")
+        lines.append("")
+
+    # -- E2 section 3: sign-persistence conditioner (accruing secondary) ------
+    n_pers = len(df)
+    lines += [
+        "## Sign-persistence conditioner (accruing secondary)",
+        "",
+        "The ONE registered E2 hypothesis family (PREREG_E2_DECAY_TELEMETRY.md):",
+        "does the sign of the trailing 12-month mean IC predict next-month IC?",
+        f"Statistic: OLS of IC_m on s_m = sign(trailing 12mo mean IC), Newey-West",
+        f"lag {NW_LAG}. Bar: |t| >= {PERS_T_BAR:g} AND same effect sign in both sample halves",
+        "AND significance survives Bonferroni across all components tested.",
+        f"**Hypothesis count on this panel: {n_pers}.** Series with < 24 monthly",
+        "ICs are INSUFFICIENT.",
+        "",
+        "**The kill condition is decided ONLY by the PIT-primary run on mill",
+        "(research/lane1/e2_persistence.py). This accruing live panel cannot",
+        "clear or resurrect the conditioner this cycle** (prereg: Falsifier).",
+        "At ~6 monthly ICs every row below is expected to read INSUFFICIENT for",
+        "a long time; the section exists so the statistic accrues weekly.",
+        "",
+        "| series | horizon | n_months | n_pairs | beta | t_nw | verdict | note |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    if not df.empty:
+        for r in df.itertuples():
+            lines.append(
+                f"| `{r.series}` | {r.horizon}d | {r.pers_n_months} | {r.pers_n_pairs} | "
+                f"{fmt(r.pers_beta)} | {fmt(r.pers_t, '{:+.2f}')} | {r.pers_verdict} | "
+                f"{r.pers_note or ''} |")
+    lines.append("")
 
     lines += [
         "## Reading this",
@@ -569,8 +840,11 @@ def generate(db: str, out_dir: Path, window_days: int, horizons, asof=None,
     out_dir.mkdir(parents=True, exist_ok=True)
 
     panel = load_panel(db, window_days, asof=asof)
-    results = run_analysis(panel, horizons)
+    ic_map = compute_ic_map(panel, horizons)
+    results = run_analysis(panel, horizons, ic_map=ic_map)
     df = results_to_frame(results)
+    regime = (regime_table(panel, horizons, ic_map=ic_map) if not panel.empty
+              else {"status": "INSUFFICIENT", "reason": "empty panel"})
 
     run_date = (asof or (panel["date"].max().isoformat() if not panel.empty
                          else datetime.now(timezone.utc).date().isoformat()))
@@ -597,14 +871,15 @@ def generate(db: str, out_dir: Path, window_days: int, horizons, asof=None,
     }
 
     df.to_csv(csv_path, index=False)
-    md_path.write_text(render_markdown(df, meta, delta))
+    md_path.write_text(render_markdown(df, meta, delta, regime=regime))
 
     note = ""
     if tearsheet:
         note = write_tearsheet(panel, out_dir, stem, horizons)
 
     return {"csv": csv_path, "md": md_path, "meta": meta, "delta": delta,
-            "results": df, "prev": prev, "tearsheet_note": note}
+            "results": df, "prev": prev, "tearsheet_note": note,
+            "regime": regime}
 
 
 def send_pushover(message: str) -> bool:
