@@ -13,7 +13,7 @@ import {
   AlertCircle, ShieldAlert, Flame, Scale, Bookmark, X, Plus,
   Gauge, Percent, Ruler, Calendar, Award,
   Mail, Crosshair, Sprout, Shield, Settings, Brain, Clock, Layers,
-  BarChart3, Coins, Compass, Hourglass, KeyRound, MessageSquare,
+  BarChart3, Coins, Compass, Hourglass, KeyRound, MessageSquare, FlaskConical,
 } from 'lucide-react';
 
 export {
@@ -26,7 +26,7 @@ export {
   AlertCircle, ShieldAlert, Flame, Scale, Bookmark, X, Plus,
   Gauge, Percent, Ruler, Calendar, Award,
   Mail, Crosshair, Sprout, Shield, Settings, Brain, Clock, Layers,
-  BarChart3, Coins, Compass, Hourglass, KeyRound, MessageSquare,
+  BarChart3, Coins, Compass, Hourglass, KeyRound, MessageSquare, FlaskConical,
 };
 
 /** Directional lean glyph — bullish / bearish / neutral. */

@@ -13,8 +13,7 @@ import { Badge } from '../components/ui/Badge';
 import { Explain } from '../components/ui/Explain';
 import { Scale, Scroll, Ruler, Zap, LineChart, Activity, Landmark } from '../components/ui/icons';
 import { SvgBarChart } from '../components/charts/SvgBarChart';
-import { StoryPanel } from '../components/NarrativeBlurb';
-import { fetchScoreHistory, fetchSignals, fetchChart, fetchNarrative } from '../api/endpoints';
+import { fetchScoreHistory, fetchSignals, fetchChart } from '../api/endpoints';
 import { ltBreakdown, optBreakdown } from '../utils/scoring';
 import styles from './TickerPage.module.css';
 
@@ -68,7 +67,6 @@ export function TickerPage({ latest, tz }) {
   const [history, setHistory] = useState(null);
   const [signals, setSignals] = useState(null);
   const [chart, setChart] = useState(null);
-  const [narrative, setNarrative] = useState(null);
 
   // Find this ticker in latest scores
   const res = latest?.results || [];
@@ -79,11 +77,6 @@ export function TickerPage({ latest, tz }) {
     fetchScoreHistory(ticker, 90).then(d => { if (d) setHistory(d); });
     fetchSignals(ticker, 20).then(d => { if (d) setSignals(d); });
     fetchChart(ticker, 90).then(d => { if (d) setChart(d); });
-    // Story panel — single fetch per load (no polling storm). On 202 the API
-    // returns { status: "generating" }; we render a quiet placeholder and it
-    // resolves on the next visit once mill has drafted it.
-    setNarrative(null);
-    fetchNarrative(ticker).then(d => { if (d) setNarrative(d); });
   }, [ticker]);
 
   if (!ticker) {
@@ -142,13 +135,13 @@ export function TickerPage({ latest, tz }) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
-              onClick={() => navigate('/pactum', { state: { ticker } })}
+              onClick={() => navigate('/experimental/pactum', { state: { ticker } })}
               className={styles.actionBtn}
             >
               <Zap size={14} style={{ verticalAlign: '-2px' }} /> View Plays
             </button>
             <button
-              onClick={() => navigate('/conviction')}
+              onClick={() => navigate('/experimental/conviction')}
               className={styles.actionBtnSecondary}
             >
               <Scroll size={14} style={{ verticalAlign: '-2px' }} /> Conviction
@@ -168,9 +161,6 @@ export function TickerPage({ latest, tz }) {
           {volRatio != null && <Metric label="Vol Ratio" value={`${volRatio}x`} color={volRatio > 1.5 ? 'var(--color-success)' : 'var(--color-text-secondary)'} />}
         </div>
       </Card>
-
-      {/* Story panel — LT + ST narrative (read-only; from narratives.db) */}
-      <StoryPanel narrative={narrative} tz={tz} />
 
       {/* Score breakdowns side by side */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -240,8 +230,8 @@ export function TickerPage({ latest, tz }) {
       {/* Quick nav */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '8px 0' }}>
         <button onClick={() => navigate('/basilica')} className={styles.navLink}><Landmark size={13} style={{ verticalAlign: '-2px' }} /> Basilica</button>
-        <button onClick={() => navigate('/pactum', { state: { ticker } })} className={styles.navLink}><Zap size={13} style={{ verticalAlign: '-2px' }} /> Forge Plays</button>
-        <button onClick={() => navigate('/conviction')} className={styles.navLink}><Scroll size={13} style={{ verticalAlign: '-2px' }} /> Conviction</button>
+        <button onClick={() => navigate('/experimental/pactum', { state: { ticker } })} className={styles.navLink}><Zap size={13} style={{ verticalAlign: '-2px' }} /> Forge Plays</button>
+        <button onClick={() => navigate('/experimental/conviction')} className={styles.navLink}><Scroll size={13} style={{ verticalAlign: '-2px' }} /> Conviction</button>
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ import {
   FileText, MessageSquare, Waves, Shield, Layers, DirectionIcon,
 } from '../components/ui/icons';
 import { fetchMarketIndices, fetchMomentumSignals, fetchKillerPlays, fetchBuyZone, sendKillerAlerts } from '../api/endpoints';
+import { ExperimentalBanner } from '../components/ExperimentalBanner';
 import { convictionScore } from '../utils/scoring';
 import { fmtTS } from '../utils/formatters';
 import styles from './BasilicaPage.module.css';
@@ -110,7 +111,7 @@ function KillerPlaysWidget({ navigate }) {
         {items.slice(0, 8).map((p, i) => {
           const combined = p.combined_score || Math.round(convictionScore(p));
           return (
-            <div key={i} className={styles.playCard} onClick={() => navigate('/pactum', { state: { ticker: p.ticker } })}>
+            <div key={i} className={styles.playCard} onClick={() => navigate('/experimental/pactum', { state: { ticker: p.ticker } })}>
               <div className={styles.playTop}>
                 <span className={styles.playTicker}>{p.ticker}</span>
                 <TierBadge score={combined} />
@@ -153,7 +154,7 @@ function BuyZoneWidget({ navigate }) {
       </div>
       <div className={styles.playGrid}>
         {items.slice(0, 8).map((p, i) => (
-          <div key={i} className={styles.playCard} onClick={() => navigate('/conviction', { state: { ticker: p.ticker } })}>
+          <div key={i} className={styles.playCard} onClick={() => navigate('/experimental/conviction', { state: { ticker: p.ticker } })}>
             <div className={styles.playTop}>
               <span className={styles.playTicker}>{p.ticker}</span>
               <span className={`${styles.scorePill} ${styles.up}`}>{p.lt_score}</span>
@@ -360,10 +361,14 @@ export function BasilicaPage({ stats, latest, tz }) {
       {/* Market indices */}
       <Card className={styles.block}><MarketBar /></Card>
 
-      {/* Killer plays + buy zone */}
-      <div className={`${styles.twoCol} ${styles.block}`}>
-        <Card><KillerPlaysWidget navigate={navigate} /></Card>
-        <Card><BuyZoneWidget navigate={navigate} /></Card>
+      {/* Killer plays + buy zone -- play surfaces, so they carry the shared
+          gate-verdict banner (V3C D2). Widgets themselves stay. */}
+      <div className={styles.block}>
+        <ExperimentalBanner style={{ marginBottom: 12 }} />
+        <div className={styles.twoCol}>
+          <Card><KillerPlaysWidget navigate={navigate} /></Card>
+          <Card><BuyZoneWidget navigate={navigate} /></Card>
+        </div>
       </div>
 
       {/* Score momentum */}

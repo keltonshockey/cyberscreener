@@ -65,7 +65,7 @@ export function SearchBar({ results = [] }) {
     setQuery('');
     setIsOpen(false);
     inputRef.current?.blur();
-    navigate('/pactum', { state: { ticker } });
+    navigate('/experimental/pactum', { state: { ticker } });
   }, [navigate]);
 
   // Keyboard navigation in results
