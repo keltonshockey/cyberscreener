@@ -76,6 +76,8 @@ export const fetchIntelNews = () => api('/intel/news');
 export const fetchIntelOutages = () => api('/intel/outages');
 
 // ── Watchlist ──
+// Monthly Valuation Watchlist snapshot (read-only, previous-month scan).
+export const fetchValuationWatchlist = (limit = 25) => api(`/watchlist/valuation?limit=${limit}`);
 export const fetchWatchlist = () => api('/watchlist');
 export const addWatchlistTicker = (ticker, notes, sector) =>
   api('/watchlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticker, notes, sector }) });

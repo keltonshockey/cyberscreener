@@ -117,6 +117,8 @@ from routers.ticker import router as _ticker_router
 from routers.plays import router as _plays_router
 # Narrative panel — additive, read-only, backed by a SEPARATE narratives.db.
 from routers.narrative import router as _narrative_router
+# Valuation Watchlist -- additive, strictly read-only (db.ro), monthly snapshot.
+from routers.watchlist import router as _watchlist_router
 
 app.include_router(_auth_router)
 app.include_router(_backtest_router)
@@ -125,6 +127,7 @@ app.include_router(_market_router)
 app.include_router(_ticker_router)
 app.include_router(_plays_router)
 app.include_router(_narrative_router)
+app.include_router(_watchlist_router)
 
 init_db()
 # Bootstrap the separate narratives store (regenerable; never touches the prod DB).
