@@ -117,7 +117,7 @@ from routers.ticker import router as _ticker_router
 from routers.plays import router as _plays_router
 # Narrative panel — additive, read-only, backed by a SEPARATE narratives.db.
 from routers.narrative import router as _narrative_router
-# Evidence page — additive, FILE-only (delivered gate/IC artifacts, never the DB).
+# Evidence page - additive, FILE-only (delivered gate/IC artifacts, never the DB).
 from routers.evidence import router as _evidence_router
 
 app.include_router(_auth_router)
