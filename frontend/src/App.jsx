@@ -12,6 +12,7 @@ import { Footer } from './components/layout/Footer';
 import { LoginPage } from './auth/LoginPage';
 import { RegisterPage } from './auth/RegisterPage';
 import { QuaestorCreator } from './auth/QuaestorCreator';
+import { WatchlistPage } from './pages/WatchlistPage';
 import { BasilicaPage } from './pages/BasilicaPage';
 import { ConvictionPage } from './pages/ConvictionPage';
 import { PactumPage } from './pages/PactumPage';
@@ -163,8 +164,15 @@ export function App() {
 
       <main style={{ flex: 1, padding: '20px 24px', maxWidth: 1400, width: '100%', margin: '0 auto' }}>
         <Routes>
+          {/* v3: the monthly Valuation Watchlist IS the front page; the old
+              overview keeps its full self at /basilica (demotion of anything
+              else is deliberately out of scope here -- session V3c). */}
           <Route
             path="/"
+            element={<WatchlistPage />}
+          />
+          <Route
+            path="/basilica"
             element={<BasilicaPage stats={stats} latest={latest} tz={tz} />}
           />
           <Route

@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { Landmark, Scroll, Zap, Library, Globe, Play, RefreshCw } from '../ui/icons';
+import { Landmark, Scroll, Zap, Library, Globe, Play, RefreshCw, Scale } from '../ui/icons';
 import styles from './NavBar.module.css';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Basilica', sub: 'today', Icon: Landmark },
+  { to: '/', label: 'Watchlist', sub: 'monthly valuation', Icon: Scale },
+  { to: '/basilica', label: 'Basilica', sub: 'today', Icon: Landmark },
   { to: '/conviction', label: 'Forum', sub: 'long-term value', Icon: Scroll },
   { to: '/pactum', label: 'Pactum', sub: 'tactical options', Icon: Zap },
   { to: '/archive', label: 'Archive', sub: 'backtest', Icon: Library },

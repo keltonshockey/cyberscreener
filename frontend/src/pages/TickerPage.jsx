@@ -239,7 +239,7 @@ export function TickerPage({ latest, tz }) {
 
       {/* Quick nav */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '8px 0' }}>
-        <button onClick={() => navigate('/')} className={styles.navLink}><Landmark size={13} style={{ verticalAlign: '-2px' }} /> Basilica</button>
+        <button onClick={() => navigate('/basilica')} className={styles.navLink}><Landmark size={13} style={{ verticalAlign: '-2px' }} /> Basilica</button>
         <button onClick={() => navigate('/pactum', { state: { ticker } })} className={styles.navLink}><Zap size={13} style={{ verticalAlign: '-2px' }} /> Forge Plays</button>
         <button onClick={() => navigate('/conviction')} className={styles.navLink}><Scroll size={13} style={{ verticalAlign: '-2px' }} /> Conviction</button>
       </div>
