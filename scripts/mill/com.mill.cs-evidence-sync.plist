@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Weekly evidence delivery (SESSION-V3B-EVIDENCE).
+
+     STAGED - NOT LOADED. Installing it is a supervised human step; see the
+     runbook in RESULT-V3B. No code session loads launchd jobs. Load only
+     AFTER the restricted droplet key is in place and one by-hand run of
+     push_evidence.sh has delivered and logged cleanly:
+
+       cp scripts/mill/com.mill.cs-evidence-sync.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.mill.cs-evidence-sync.plist
+
+     Sundays 19:00 mill-local: after the 18:00 gate read and the 18:30 IC
+     report, so the week's artifacts exist before the push. The script no-ops
+     via hash-compare when nothing changed, Pushovers on failure with the
+     response read and logged.
+
+     No KeepAlive, no RunAtLoad - it fires on the calendar only. Network:
+     opens no listener; outbound-only rsync-over-ssh to the restricted
+     evidence key, plus Pushover on failure, both over existing paths. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mill.cs-evidence-sync</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>set -a; . "$HOME/.config/grist/mill-secrets.env"; set +a; exec "$HOME/cyberscreener/scripts/mill/push_evidence.sh"</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>19</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/tmp/cs-evidence-sync.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/cs-evidence-sync.err</string>
+</dict>
+</plist>
